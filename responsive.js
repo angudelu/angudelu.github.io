@@ -59,3 +59,58 @@ window.addEventListener('DOMContentLoaded', function() {
     }
     document.addEventListener('click', enterSite);
 });
+
+// --- OJOS PESTAÑEANDO AUTOMÁTICAMENTE ---
+// Añade listeners para mantener el ojo cerrado en hover
+window.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.eye-link img').forEach(eye => {
+        eye.addEventListener('mouseover', function() {
+            this.src = 'closedeye.png';
+            this.dataset.closedHover = 'true';
+        });
+        eye.addEventListener('mouseout', function() {
+            this.src = 'eye.webp';
+            this.dataset.closedHover = '';
+        });
+    });
+});
+
+function doBlink(times, cb) {
+    if (times <= 0) {
+        if (cb) cb();
+        return;
+    }
+    const eyes = document.querySelectorAll('.eye-link img');
+    // Cierra todos los ojos que no estén en hover
+    eyes.forEach(eye => {
+        if (eye.src.includes('eye.webp') && !eye.dataset.closedHover) {
+            eye.src = 'closedeye.png';
+        }
+    });
+    setTimeout(() => {
+        // Abre todos los ojos que no estén en hover
+        eyes.forEach(eye => {
+            if (eye.src.includes('closedeye.png') && !eye.dataset.closedHover) {
+                eye.src = 'eye.webp';
+            }
+        });
+        setTimeout(() => doBlink(times - 1, cb), 120);
+    }, 180);
+}
+
+function blinkEyes() {
+    // Probabilidades: 60% doble, 30% simple, 10% triple
+    const rand = Math.random();
+    let blinkCount = 2;
+    if (rand < 0.3) blinkCount = 1;
+    else if (rand > 0.9) blinkCount = 3;
+    doBlink(blinkCount, () => {
+        // Siempre espera entre 5 y 15 segundos después de cada secuencia
+        const nextBlink = 5000 + Math.random() * 10000;
+        setTimeout(blinkEyes, nextBlink);
+    });
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+    setTimeout(blinkEyes, 2000 + Math.random() * 3000); // Primer parpadeo aleatorio
+});
