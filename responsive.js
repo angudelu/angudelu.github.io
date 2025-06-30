@@ -40,3 +40,22 @@ function handleResponsiveHeading() {
 }
 
 // Remove visited button tracking
+
+// Reproducir música y quitar overlay al hacer clic
+window.addEventListener('DOMContentLoaded', function() {
+    var overlay = document.getElementById('click-overlay');
+    function enterSite() {
+        var audio = document.getElementById('bg-music');
+        if (audio && audio.paused) {
+            audio.play();
+        }
+        if (overlay) {
+            overlay.style.opacity = '0';
+            setTimeout(function() {
+                overlay.style.display = 'none';
+            }, 1000); // Espera a que termine la transición
+        }
+        document.removeEventListener('click', enterSite);
+    }
+    document.addEventListener('click', enterSite);
+});
