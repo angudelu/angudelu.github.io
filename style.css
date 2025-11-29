@@ -1,28 +1,109 @@
 html, body {
+    /*color, font*/
     background: black;
     color: white;
+    font-family: Helvetica, Verdana, Arial, sans-serif;
+    font-size: 16px;
+    /*border, padding, margin*/
+    border: 0;
     margin: 0;
     padding: 0;
-    font-family: 'Helvetica Neue', Helvetica, Verdana, Arial, sans-serif;
-    box-sizing: border-box;
+    /*display:(flex, overflow, width...)*/
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
+    width: 100%;
 }
-.uptitle {
-    background: #00bfff;
+header {
     color: black;
-    text-align: center;
+    /*border, padding, margin*/
+    border: 0;
+    margin: 0;
+    padding: 0;
+    /*display:(flex, overflow...)*/
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    align-items: stretch;
+    height: 25vh;
 }
-#botonmusica {
-    background: #aabfff;
-    border: thick solid #0085d1;
-    color: black;
-    padding: 10px 24px;
+nav {
+    text-align: left;
+    font-size: 18px;
+    height: 100%;
+    width: 30%;
+    display: grid;
+    grid-column: 1fr;
+    grid-row: repeat(5, 1fr);
+}
+.elm_index {
+    color:black;
+    text-decoration: none;
+    padding: 0vh 2vh;
+}
+.up_title {
+    align-content: center;
     text-align: center;
-    display: inline-block;
+    background: cyan;
+    font-size: 20px;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    width: 40%;
+}
+.audiostuff {
+    align-content: center;
+    text-align: center;
+    background: blue;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    width: 30%;
+}
+#sound_but {
+    /*color, text*/
+    background: white;
     font-size: 16px;
-    margin: 8px 8px;
+    color: black;
+    text-align: center;
+    /*border, padding, margin*/
+    border: solid black 4px;
+    border-radius: 8px;
+    padding: 10px 24px;
+    margin: 8px;
+    /*display*/
+    display: inline-block;
+    /*etc*/
     cursor: pointer;
-    border-radius: 12px;
+}
+
+.content{
+    /*border, padding, margin*/
+    border: 0;
+    margin: 0;
+    padding: 0;
+    /*display:(flex, overflow...)*/
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    align-items: stretch;
+}
+
+.blog{
+    width: 50%;
+}
+
+.publi{
+    width: 50%;
+}
+
+.publi_post1{
+    border: solid white 4px;
+    border-radius: 8px;
+    padding: 10px 24px;
+    margin: 16px 32px;
+}
+
+h1,h2,h3{
+    text-align: center;
 }

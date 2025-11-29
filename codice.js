@@ -10,16 +10,16 @@ function musica(){
   if(audiom.muted){
     audiom.muted = false;
     audiom.volume = 1;
-    document.getElementById('botonmusica').textContent = 'quitar sonido?';
+    document.getElementById('sound_but').textContent = 'quitar sonido?';
   }
   else{
     audiom.muted = true;
-    document.getElementById('botonmusica').textContent = 'activar sonido?';
+    document.getElementById('sound_but').textContent = 'activar sonido?';
   }
 
-  console.log('botonmusica pulsado... audio muteado?:', audiom.muted);
+  console.log('sound_but pressed... is audio muted?:', audiom.muted);
 }
 
 function engordar(){
-    document.getElementById('mmm').src = "mmm_gordo.png";
+    document.getElementById('mmm').src = "fat_mmm.png";
 }
