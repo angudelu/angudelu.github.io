@@ -132,3 +132,10 @@ button:active {
 h1,h2,h3{
     text-align: center;
 }
+
+a{
+    color: magenta;
+}
+a:hover{
+    color: cyan;
+}
