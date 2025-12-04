@@ -13,9 +13,9 @@
 <!-- page -->
 <body>
     <!-- header -->
-    <header>
+    <header id="header">
         <!-- index -->
-        <nav>
+        <nav id="nav">
             <div style="text-align: center; color: white;align-content: center;"><span>INDEX</span></div>
             <a href="https://www.youtube.com/watch?v=BuKft9LpL_0"class="elm_index"><span>cosa 1</span></a>
             <a href="https://www.youtube.com/watch?v=XlLKqBxrOmo"class="elm_index"><span>cosa 2</span></a>
@@ -23,27 +23,40 @@
             <a href="https://www.youtube.com/watch?v=2yJgwwDcgV8"class="elm_index"><span>cosa 4</span></a>
         </nav>
         <!-- title -->
-        <div class="up_title">
+        <div id = "up_title" class="up_title">
         <h1>bienvenidos a mi césped</h1>
         <p><img style="width: 64px;" src="smiley.webp" alt=":D">
         <img style="width: 64px;" src="smiley.webp" alt=":D">
         <span style="position: relative; bottom: 32px;">estoy construyendo por acá</span>
         <img style="width: 64px;" src="smiley.webp" alt=":D">
         <img style="width: 64px;" src="smiley.webp" alt=":D"><br>
-        sé que no funsiona en móvil sorry...<br>
-            em ya lo arreglaré cuando pueda *+*
+        optimizado para móvil!<br>
+            mucho mejor en ordenador.
         </p>
         </div>
         <!-- audio stuff -->
-        <div class="audiostuff">
-        <button id="sound_but" onclick="musica()">activar sonido?</button>
+        <div class="audiostuff" id="audiostuff">
+            <div style="border: 4px solid magenta;background: #ffddff; margin:0% 10%;">
+                <p>para la optimización móvil</p>
+                <p>has de pulsar ahí al botón asul</p>
+                <p>ese ke dise optimizar</p>
+            </div>
+            <button id="sound_but" onclick="musica()">activar sonido?</button>
+            <button id="sound_but" onclick="carrega()">OPTIMIZAR</button>
         </div>
     </header>
     <!-- content -->
     <div class="content">
-        <div class="blog">
+        <div style="width: 50%;" id="blog">
             <h1>BLOG</h1>
             <hr style="height: 4px; background: white;">
+            <div class="blog_post1">
+                <h3>···[2/12/2025]···</h3>
+                <p><span style="color: grey;">[2/12/2025 ??:??]</span> hola familia ustedes ya saven kel profesor abla ke abla y no dice nada <br>
+                    <span style="color: grey;">////</span> em ps voy a aprofitar para aser actualizasionmmm <br>
+                    <span style="color: grey;">////</span> porsierto ustedes tendrian ke benir a algebraaa ke os pasaaa pq no venis <br>
+                    <span style="color: grey;">////</span> ke feo me parese realmente feo me parese no miento eee mmm ke feo</p>
+            </div>
             <div class="blog_post1">
                 <h3>···[1/12/2025]···</h3>
                 <p><span style="color: grey;">[1/12/2025 ??:??]</span> ya es disiembre casi es navidat mmm<br>
@@ -57,7 +70,7 @@
                     <span style="color: grey;">////</span> ps como no hai llibro mmm ps ahi lo dejo para akel bienaventurado <br>
                     <span style="color: grey;">////</span> no està todo però lo iré aktualizando o algo yk idk yk... <br>
                     <span style="color: grey;">////</span> igual no us fieis muxo pq ykm ya sabes jaja lol, tu sabes no? <br>
-                    <span style="color: grey;">////</span> son mis apuntes de la klase des cuchar al profe fablando y fablando mmm...</p>
+                    <span style="color: grey;">////</span> son mis apuntes de la klase des cuchar al profe fablando y jablando mmm...</p>
             </div>
             <div class="blog_post1">
                 <h3>···[30/11/2025]···</h3>
@@ -71,8 +84,8 @@
                     <p>mira como masacraron a mi pequeño</p>
             </div>
         </div>
-        <div style="border-left: thick solid white;"></div>
-        <div class="publi">
+        <div id="lineadivisoria" style="border-left: thick solid white;"></div>
+        <div style="width: 50%;" id="publi">
             <h1>PUBLICACIONES</h1>
             <div class="publi_post1">
                 <h2>···MATES jaja APRENDO???···</h2>

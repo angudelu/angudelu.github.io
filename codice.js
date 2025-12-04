@@ -23,3 +23,14 @@ function musica(){
 function engordar(){
     document.getElementById('mmm').src = "fat_mmm.png";
 }
+
+function carrega(){
+  document.getElementById("blog").remove();
+  document.getElementById("lineadivisoria").remove();
+  document.getElementById("publi").style.width = "100%";
+  document.getElementById("header").style.flexDirection = "column";
+  document.getElementById("nav").style.width = "100%";
+  document.getElementById("up_title").style.width = "100%";
+  document.getElementById("up_title").replaceChildren("hola biembenido a mi césped, éste aquí el título en móvil está bien feo ya lo arreglaré o algo jaja. mejor que useis la página en ordenador tbh pq el javascript está bien complicadoooo");
+  document.getElementById("audiostuff").remove();
+}

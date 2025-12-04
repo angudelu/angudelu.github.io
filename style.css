@@ -114,14 +114,6 @@ button:active {
     align-items: stretch;
 }
 
-.blog{
-    width: 50%;
-}
-
-.publi{
-    width: 50%;
-}
-
 .publi_post1{
     border: solid white 4px;
     border-radius: 8px;
