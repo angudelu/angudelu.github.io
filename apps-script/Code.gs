@@ -30,7 +30,9 @@ function setup() {
   let sheet = spreadsheet.getSheetByName(COMMENTS_SHEET_NAME);
   if (!sheet) {
     sheet = spreadsheet.insertSheet(COMMENTS_SHEET_NAME);
-    sheet.appendRow(["fecha", "usuario", "comentario"]);
+    sheet.appendRow(["fecha", "usuario", "comentario", "id_solicitud"]);
+  } else if (sheet.getRange(1, 4).getValue() !== "id_solicitud") {
+    sheet.getRange(1, 4).setValue("id_solicitud");
   }
 
   if (!properties.getProperty(COMMENTS_USERS_PROPERTY)) {
@@ -174,12 +176,18 @@ function doPost(event) {
     const commentRecord = {
       date: new Date().toISOString(),
       name: username,
-      comment: comment
+      comment: comment,
+      requestId: requestId
     };
     const lock = LockService.getScriptLock();
     lock.waitLock(10000);
     try {
-      sheet.appendRow([commentRecord.date, commentRecord.name, commentRecord.comment]);
+      sheet.appendRow([
+        commentRecord.date,
+        commentRecord.name,
+        commentRecord.comment,
+        commentRecord.requestId
+      ]);
     } finally {
       lock.releaseLock();
     }
@@ -217,13 +225,14 @@ function readComments_() {
     return [];
   }
 
-  return sheet.getRange(2, 1, lastRow - 1, 3).getValues()
+  return sheet.getRange(2, 1, lastRow - 1, 4).getValues()
     .filter((row) => row[0] && row[1] && row[2])
     .reverse()
     .map((row) => ({
       date: row[0] instanceof Date ? row[0].toISOString() : String(row[0]),
       name: String(row[1]),
-      comment: String(row[2])
+      comment: String(row[2]),
+      requestId: String(row[3] || "")
     }));
 }
 

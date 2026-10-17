@@ -24,4 +24,4 @@ window.COMMENTS_API_URL = "https://script.google.com/macros/s/ID_DE_IMPLEMENTACI
 
 Guarda y publica el cambio en GitHub. Después abre la URL de GitHub Pages y prueba a enviar un comentario con `usuario:contraseña`.
 
-Si más adelante editas `Code.gs`, crea una versión nueva de la implementación web para que los cambios entren en vigor. La respuesta vuelve al nivel superior de la página (`window.top`) usando el `ALLOWED_ORIGIN` exacto; la web comprueba el dominio de Google Apps Script y el identificador único de la solicitud.
+Si más adelante editas `Code.gs`, crea una versión nueva de la implementación web para que los cambios entren en vigor. Si ya existe la hoja, ejecuta `setup()` otra vez para añadir la columna de ID de solicitud. La respuesta vuelve al nivel superior de la página (`window.top`) usando el `ALLOWED_ORIGIN` exacto; si el navegador no entrega esa respuesta al formulario, la página también verifica en la hoja que el comentario con el ID único se haya guardado.

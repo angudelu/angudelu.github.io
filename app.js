@@ -172,6 +172,8 @@ function createCommentElement(comment) {
 	return article;
 }
 
+let appsScriptCommentsSnapshot = null;
+
 async function loadComments() {
 	const list = document.querySelector("#comment-list");
 	if (!list) {
@@ -185,6 +187,9 @@ async function loadComments() {
 			: await loadLocalComments();
 		if (revision !== commentListRevision) {
 			return;
+		}
+		if (window.COMMENTS_API_URL) {
+			appsScriptCommentsSnapshot = result.comments;
 		}
 		if (result.comments.length === 0) {
 			list.textContent = "Todavía no hay comentarios.";
@@ -211,14 +216,14 @@ async function loadLocalComments() {
 	return result;
 }
 
-function loadAppsScriptComments() {
+function loadAppsScriptComments(timeoutMs = 15000) {
 	return new Promise((resolve, reject) => {
 		const callbackName = `commentsCallback${Date.now()}${Math.random().toString(36).slice(2)}`;
 		const script = document.createElement("script");
 		const timeout = window.setTimeout(() => {
 			cleanup();
 			reject(new Error("Tiempo de espera agotado al consultar Apps Script."));
-		}, 15000);
+		}, timeoutMs);
 
 		function cleanup() {
 			window.clearTimeout(timeout);
@@ -232,6 +237,7 @@ function loadAppsScriptComments() {
 				reject(new Error(result.error));
 				return;
 			}
+			appsScriptCommentsSnapshot = result.comments;
 			resolve(result);
 		};
 		script.onerror = () => {
@@ -245,15 +251,44 @@ function loadAppsScriptComments() {
 
 let commentListRevision = 0;
 
-function submitAppsScriptComment(credentials, comment) {
+async function submitAppsScriptComment(credentials, comment) {
 	const iframe = document.querySelector("#comment-transport");
 	const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+	const previousComments = appsScriptCommentsSnapshot || (await loadAppsScriptComments()).comments;
+	const username = credentials.slice(0, credentials.indexOf(":"));
 
 	return new Promise((resolve, reject) => {
+		let settled = false;
+		let fallbackTimer;
+		let fallbackAttempts = 0;
 		const timeout = window.setTimeout(() => {
+			finishWithError(new Error("No se pudo confirmar el envío. Comprueba la conexión e inténtalo otra vez."));
+		}, 11000);
+
+		function cleanup() {
+			window.clearTimeout(timeout);
+			window.clearTimeout(fallbackTimer);
 			window.removeEventListener("message", handleMessage);
-			reject(new Error("Apps Script no respondió. Actualiza su implementación con la última versión de Code.gs."));
-		}, 12000);
+			iframe.removeEventListener("load", handleFrameLoad);
+		}
+
+		function finishWithError(error) {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			cleanup();
+			reject(error);
+		}
+
+		function finishWithComment(savedComment) {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			cleanup();
+			resolve(savedComment);
+		}
 
 		function handleMessage(event) {
 			const isAppsScriptResponse =
@@ -265,16 +300,49 @@ function submitAppsScriptComment(credentials, comment) {
 			) {
 				return;
 			}
-			window.clearTimeout(timeout);
-			window.removeEventListener("message", handleMessage);
 			if (event.data.ok) {
-				resolve(event.data.comment);
+				finishWithComment(event.data.comment);
 			} else {
-				reject(Object.assign(new Error(event.data.error), { status: event.data.status }));
+				finishWithError(Object.assign(new Error(event.data.error), { status: event.data.status }));
 			}
 		}
 
+		async function reconcileSavedComment() {
+			if (settled) {
+				return;
+			}
+			try {
+				const { comments } = await loadAppsScriptComments(2500);
+				const savedComment = comments.find((entry) => entry.requestId === requestId) ||
+					comments.find((entry) =>
+						entry.name === username &&
+						entry.comment === comment &&
+						!previousComments.some((previous) =>
+							previous.date === entry.date &&
+							previous.name === entry.name &&
+							previous.comment === entry.comment
+						)
+					);
+				if (savedComment) {
+					finishWithComment(savedComment);
+					return;
+				}
+			} catch (error) {
+				console.error("No se pudo verificar todavía el comentario guardado.", error);
+			}
+
+			fallbackAttempts += 1;
+			if (fallbackAttempts < 3 && !settled) {
+				fallbackTimer = window.setTimeout(reconcileSavedComment, 500);
+			}
+		}
+
+		function handleFrameLoad() {
+			fallbackTimer = window.setTimeout(reconcileSavedComment, 350);
+		}
+
 		window.addEventListener("message", handleMessage);
+		iframe.addEventListener("load", handleFrameLoad);
 		const form = document.createElement("form");
 		form.method = "post";
 		form.action = window.COMMENTS_API_URL;
@@ -282,7 +350,7 @@ function submitAppsScriptComment(credentials, comment) {
 		form.hidden = true;
 
 		for (const [name, value] of Object.entries({
-			username: credentials.split(":", 1)[0],
+			username,
 			password: credentials.slice(credentials.indexOf(":") + 1),
 			comment,
 			requestId
