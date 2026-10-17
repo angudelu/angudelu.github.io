@@ -24,4 +24,4 @@ window.COMMENTS_API_URL = "https://script.google.com/macros/s/ID_DE_IMPLEMENTACI
 
 Guarda y publica el cambio en GitHub. Después abre la URL de GitHub Pages y prueba a enviar un comentario con `usuario:contraseña`.
 
-Si más adelante editas `Code.gs`, crea una versión nueva de la implementación web para que los cambios entren en vigor. Si mueves GitHub Pages a otro origen, actualiza `ALLOWED_ORIGIN` en las propiedades del script y vuelve a implementar.
+Si más adelante editas `Code.gs`, crea una versión nueva de la implementación web para que los cambios entren en vigor. La respuesta vuelve al nivel superior de la página (`window.top`) usando el `ALLOWED_ORIGIN` exacto; la web comprueba el dominio de Google Apps Script y el identificador único de la solicitud.

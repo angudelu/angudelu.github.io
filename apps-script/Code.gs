@@ -290,7 +290,7 @@ function postMessageResponse_(message) {
     throw new Error("Configura ALLOWED_ORIGIN antes de recibir comentarios.");
   }
   const html = "<!doctype html><html><body><script>" +
-    "window.parent.postMessage(" + serializedMessage + "," +
+    "window.top.postMessage(" + serializedMessage + "," +
     JSON.stringify(allowedOrigin) + ");" +
     "</script></body></html>";
   return HtmlService.createHtmlOutput(html)

@@ -177,17 +177,24 @@ async function loadComments() {
 	if (!list) {
 		return;
 	}
+	const revision = commentListRevision;
 
 	try {
 		const result = window.COMMENTS_API_URL
 			? await loadAppsScriptComments()
 			: await loadLocalComments();
+		if (revision !== commentListRevision) {
+			return;
+		}
 		if (result.comments.length === 0) {
 			list.textContent = "Todavía no hay comentarios.";
 			return;
 		}
 		list.replaceChildren(...result.comments.map(createCommentElement));
 	} catch (error) {
+		if (revision !== commentListRevision) {
+			return;
+		}
 		list.textContent = window.COMMENTS_API_URL
 			? "No se pudieron cargar los comentarios. Comprueba la URL y el despliegue de Apps Script."
 			: "No se pudieron cargar los comentarios. En GitHub Pages configura Apps Script en comments-config.js.";
@@ -236,6 +243,8 @@ function loadAppsScriptComments() {
 	});
 }
 
+let commentListRevision = 0;
+
 function submitAppsScriptComment(credentials, comment) {
 	const iframe = document.querySelector("#comment-transport");
 	const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -243,11 +252,17 @@ function submitAppsScriptComment(credentials, comment) {
 	return new Promise((resolve, reject) => {
 		const timeout = window.setTimeout(() => {
 			window.removeEventListener("message", handleMessage);
-			reject(new Error("Apps Script no respondió. Revisa el despliegue y la URL configurada."));
-		}, 20000);
+			reject(new Error("Apps Script no respondió. Actualiza su implementación con la última versión de Code.gs."));
+		}, 12000);
 
 		function handleMessage(event) {
-			if (event.source !== iframe.contentWindow || event.data?.requestId !== requestId) {
+			const isAppsScriptResponse =
+				event.origin === "https://script.google.com" ||
+				/^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/i.test(event.origin);
+			if (
+				!isAppsScriptResponse ||
+				event.data?.requestId !== requestId
+			) {
 				return;
 			}
 			window.clearTimeout(timeout);
@@ -322,6 +337,7 @@ if (commentForm) {
 			}
 
 			status.classList.remove("comment-status--error");
+			commentListRevision += 1;
 			const list = document.querySelector("#comment-list");
 			if (!list.querySelector(".comment")) {
 				list.replaceChildren();
