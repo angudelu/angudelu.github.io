@@ -142,3 +142,102 @@ document.querySelectorAll("[data-history-file]").forEach(async (element) => {
 		console.error(error);
 	}
 });
+
+function createCommentElement(comment) {
+	const article = document.createElement("article");
+	article.className = "comment";
+
+	const header = document.createElement("div");
+	header.className = "comment-header";
+
+	const name = document.createElement("strong");
+	name.className = "comment-name";
+	name.textContent = comment.name;
+	header.append(name);
+
+	const date = document.createElement("time");
+	date.className = "comment-date";
+	date.dateTime = comment.date;
+	date.textContent = new Intl.DateTimeFormat("es-ES", {
+		dateStyle: "medium",
+		timeStyle: "short"
+	}).format(new Date(comment.date));
+	header.append(date);
+
+	const text = document.createElement("p");
+	text.className = "comment-text";
+	text.textContent = comment.comment;
+
+	article.append(header, text);
+	return article;
+}
+
+async function loadComments() {
+	const list = document.querySelector("#comment-list");
+	if (!list) {
+		return;
+	}
+
+	try {
+		const response = await fetch("/api/comments");
+		const result = await response.json();
+		if (!response.ok) {
+			throw new Error(result.error || "No se pudieron cargar los comentarios.");
+		}
+		if (result.comments.length === 0) {
+			list.textContent = "Todavía no hay comentarios.";
+			return;
+		}
+		list.replaceChildren(...result.comments.map(createCommentElement));
+	} catch (error) {
+		list.textContent = "No se pudieron cargar los comentarios. Inicia la web con «python server.py».";
+		console.error(error);
+	}
+}
+
+const commentForm = document.querySelector("#comment-form");
+if (commentForm) {
+	commentForm.addEventListener("submit", async (event) => {
+		event.preventDefault();
+		const formData = new FormData(commentForm);
+		const status = document.querySelector("#comment-status");
+		const submitButton = commentForm.querySelector("button[type='submit']");
+		status.textContent = "Publicando...";
+		submitButton.disabled = true;
+
+		try {
+			const response = await fetch("/api/comments", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					name: formData.get("name"),
+					comment: formData.get("comment")
+				})
+			});
+			const result = await response.json();
+			if (!response.ok) {
+				status.classList.toggle("comment-status--error", response.status === 401);
+				throw new Error(result.error || "No se pudo guardar el comentario.");
+			}
+
+			status.classList.remove("comment-status--error");
+			const list = document.querySelector("#comment-list");
+			if (!list.querySelector(".comment")) {
+				list.replaceChildren();
+			}
+			list.prepend(createCommentElement(result.comment));
+			commentForm.reset();
+			status.textContent = "Comentario publicado.";
+		} catch (error) {
+			if (!status.classList.contains("comment-status--error")) {
+				status.classList.remove("comment-status--error");
+			}
+			status.textContent = error.message || "No se pudo guardar el comentario.";
+			console.error(error);
+		} finally {
+			submitButton.disabled = false;
+		}
+	});
+
+	loadComments();
+}

@@ -16,6 +16,18 @@
 			<section class="section cyan"><h2><a href="historial-cian.html">cian</a></h2><div class="grid-text" data-text-file="texto-cian.txt">Cargando texto...</div></section>
 			<section class="section black"><h2><a href="historial-negro.html">negro</a></h2><div class="grid-text" data-text-file="texto-negro.txt">Cargando texto...</div></section>
 		</div>
+		<section class="comments-panel" aria-labelledby="comments-title">
+			<h2 id="comments-title">Comentarios</h2>
+			<form id="comment-form">
+				<label for="comment-name">Usuario:contraseña</label>
+				<input id="comment-name" name="name" type="password" maxlength="160" autocomplete="current-password" placeholder="usuario:contraseña" required>
+				<label for="comment-text">Comentario</label>
+				<textarea id="comment-text" name="comment" maxlength="1200" rows="4" required></textarea>
+				<button type="submit">Publicar comentario</button>
+				<p class="comment-status" id="comment-status" role="status" aria-live="polite"></p>
+			</form>
+			<div class="comment-list" id="comment-list" aria-live="polite">Cargando comentarios...</div>
+		</section>
 	</main>
 	<script src="app.js" defer></script>
 </body>

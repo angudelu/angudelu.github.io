@@ -1,0 +1,1 @@
+# Los comentarios se guardan aquí; cada línea nueva es un registro JSON de texto.
