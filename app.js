@@ -261,9 +261,10 @@ async function submitAppsScriptComment(credentials, comment) {
 		let settled = false;
 		let fallbackTimer;
 		let fallbackAttempts = 0;
+		let checkingComments = false;
 		const timeout = window.setTimeout(() => {
 			finishWithError(new Error("No se pudo confirmar el envío. Comprueba la conexión e inténtalo otra vez."));
-		}, 11000);
+		}, 20000);
 
 		function cleanup() {
 			window.clearTimeout(timeout);
@@ -308,11 +309,12 @@ async function submitAppsScriptComment(credentials, comment) {
 		}
 
 		async function reconcileSavedComment() {
-			if (settled) {
+			if (settled || checkingComments) {
 				return;
 			}
+			checkingComments = true;
 			try {
-				const { comments } = await loadAppsScriptComments(2500);
+				const { comments } = await loadAppsScriptComments(5000);
 				const savedComment = comments.find((entry) => entry.requestId === requestId) ||
 					comments.find((entry) =>
 						entry.name === username &&
@@ -329,16 +331,19 @@ async function submitAppsScriptComment(credentials, comment) {
 				}
 			} catch (error) {
 				console.error("No se pudo verificar todavía el comentario guardado.", error);
+			} finally {
+				checkingComments = false;
 			}
 
 			fallbackAttempts += 1;
-			if (fallbackAttempts < 3 && !settled) {
-				fallbackTimer = window.setTimeout(reconcileSavedComment, 500);
+			if (fallbackAttempts < 12 && !settled) {
+				fallbackTimer = window.setTimeout(reconcileSavedComment, 750);
 			}
 		}
 
 		function handleFrameLoad() {
-			fallbackTimer = window.setTimeout(reconcileSavedComment, 350);
+			window.clearTimeout(fallbackTimer);
+			reconcileSavedComment();
 		}
 
 		window.addEventListener("message", handleMessage);
@@ -365,6 +370,9 @@ async function submitAppsScriptComment(credentials, comment) {
 		document.body.append(form);
 		form.submit();
 		form.remove();
+		if (!settled) {
+			fallbackTimer = window.setTimeout(reconcileSavedComment, 500);
+		}
 	});
 }
 
