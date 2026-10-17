@@ -1,0 +1,4 @@
+# Formato: AAAA-MM-DD|texto|ruta-de-imagen|enlace-de-la-imagen (imagen y enlace opcionales)
+2026-10-11|Un post cian sin imagen.||
+2026-10-16|Post cian con imagen.|ice.png|
+2026-10-18|Imagen cian enlazada al sitio.|ice.png|https://yalohacemosnosotros.es/
