@@ -4,6 +4,7 @@
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>angudelu</title>
+	<link rel="icon" type="image/png" href="stallion.png">
 	<link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -27,8 +28,10 @@
 				<p class="comment-status" id="comment-status" role="status" aria-live="polite"></p>
 			</form>
 			<div class="comment-list" id="comment-list" aria-live="polite">Cargando comentarios...</div>
+			<iframe class="comment-transport" id="comment-transport" name="comment-transport" title="Envío de comentario" hidden></iframe>
 		</section>
 	</main>
+	<script src="comments-config.js"></script>
 	<script src="app.js" defer></script>
 </body>
 </html>

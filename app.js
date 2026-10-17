@@ -179,20 +179,110 @@ async function loadComments() {
 	}
 
 	try {
-		const response = await fetch("/api/comments");
-		const result = await response.json();
-		if (!response.ok) {
-			throw new Error(result.error || "No se pudieron cargar los comentarios.");
-		}
+		const result = window.COMMENTS_API_URL
+			? await loadAppsScriptComments()
+			: await loadLocalComments();
 		if (result.comments.length === 0) {
 			list.textContent = "Todavía no hay comentarios.";
 			return;
 		}
 		list.replaceChildren(...result.comments.map(createCommentElement));
 	} catch (error) {
-		list.textContent = "No se pudieron cargar los comentarios. Inicia la web con «python server.py».";
+		list.textContent = window.COMMENTS_API_URL
+			? "No se pudieron cargar los comentarios. Comprueba la URL y el despliegue de Apps Script."
+			: "No se pudieron cargar los comentarios. En GitHub Pages configura Apps Script en comments-config.js.";
 		console.error(error);
 	}
+}
+
+async function loadLocalComments() {
+	const response = await fetch("/api/comments");
+	const result = await response.json();
+	if (!response.ok) {
+		throw new Error(result.error || "No se pudieron cargar los comentarios.");
+	}
+	return result;
+}
+
+function loadAppsScriptComments() {
+	return new Promise((resolve, reject) => {
+		const callbackName = `commentsCallback${Date.now()}${Math.random().toString(36).slice(2)}`;
+		const script = document.createElement("script");
+		const timeout = window.setTimeout(() => {
+			cleanup();
+			reject(new Error("Tiempo de espera agotado al consultar Apps Script."));
+		}, 15000);
+
+		function cleanup() {
+			window.clearTimeout(timeout);
+			delete window[callbackName];
+			script.remove();
+		}
+
+		window[callbackName] = (result) => {
+			cleanup();
+			if (result.error) {
+				reject(new Error(result.error));
+				return;
+			}
+			resolve(result);
+		};
+		script.onerror = () => {
+			cleanup();
+			reject(new Error("No se pudo conectar con Apps Script."));
+		};
+		script.src = `${window.COMMENTS_API_URL}?callback=${encodeURIComponent(callbackName)}&t=${Date.now()}`;
+		document.head.append(script);
+	});
+}
+
+function submitAppsScriptComment(credentials, comment) {
+	const iframe = document.querySelector("#comment-transport");
+	const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+	return new Promise((resolve, reject) => {
+		const timeout = window.setTimeout(() => {
+			window.removeEventListener("message", handleMessage);
+			reject(new Error("Apps Script no respondió. Revisa el despliegue y la URL configurada."));
+		}, 20000);
+
+		function handleMessage(event) {
+			if (event.source !== iframe.contentWindow || event.data?.requestId !== requestId) {
+				return;
+			}
+			window.clearTimeout(timeout);
+			window.removeEventListener("message", handleMessage);
+			if (event.data.ok) {
+				resolve(event.data.comment);
+			} else {
+				reject(Object.assign(new Error(event.data.error), { status: event.data.status }));
+			}
+		}
+
+		window.addEventListener("message", handleMessage);
+		const form = document.createElement("form");
+		form.method = "post";
+		form.action = window.COMMENTS_API_URL;
+		form.target = iframe.name;
+		form.hidden = true;
+
+		for (const [name, value] of Object.entries({
+			username: credentials.split(":", 1)[0],
+			password: credentials.slice(credentials.indexOf(":") + 1),
+			comment,
+			requestId
+		})) {
+			const input = document.createElement("input");
+			input.type = "hidden";
+			input.name = name;
+			input.value = value;
+			form.append(input);
+		}
+
+		document.body.append(form);
+		form.submit();
+		form.remove();
+	});
 }
 
 const commentForm = document.querySelector("#comment-form");
@@ -203,21 +293,32 @@ if (commentForm) {
 		const status = document.querySelector("#comment-status");
 		const submitButton = commentForm.querySelector("button[type='submit']");
 		status.textContent = "Publicando...";
+		status.classList.remove("comment-status--error");
 		submitButton.disabled = true;
 
 		try {
-			const response = await fetch("/api/comments", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					name: formData.get("name"),
-					comment: formData.get("comment")
-				})
-			});
-			const result = await response.json();
-			if (!response.ok) {
-				status.classList.toggle("comment-status--error", response.status === 401);
-				throw new Error(result.error || "No se pudo guardar el comentario.");
+			let comment;
+			if (window.COMMENTS_API_URL) {
+				comment = await submitAppsScriptComment(
+					String(formData.get("name")),
+					String(formData.get("comment"))
+				);
+			} else {
+				const response = await fetch("/api/comments", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						name: formData.get("name"),
+						comment: formData.get("comment")
+					})
+				});
+				const result = await response.json();
+				if (!response.ok) {
+					throw Object.assign(new Error(result.error || "No se pudo guardar el comentario."), {
+						status: response.status
+					});
+				}
+				comment = result.comment;
 			}
 
 			status.classList.remove("comment-status--error");
@@ -225,14 +326,17 @@ if (commentForm) {
 			if (!list.querySelector(".comment")) {
 				list.replaceChildren();
 			}
-			list.prepend(createCommentElement(result.comment));
+			list.prepend(createCommentElement(comment));
 			commentForm.reset();
 			status.textContent = "Comentario publicado.";
 		} catch (error) {
-			if (!status.classList.contains("comment-status--error")) {
+			if (error.status === 401) {
+				status.classList.add("comment-status--error");
+				status.textContent = "Tienes que escribirme a mí para conseguir un usuario y contraseña y así poder comentar.";
+			} else {
 				status.classList.remove("comment-status--error");
+				status.textContent = error.message || "No se pudo guardar el comentario.";
 			}
-			status.textContent = error.message || "No se pudo guardar el comentario.";
 			console.error(error);
 		} finally {
 			submitButton.disabled = false;
