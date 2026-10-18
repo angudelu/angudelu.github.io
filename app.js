@@ -152,7 +152,9 @@ function createCommentElement(comment) {
 
 	const name = document.createElement("strong");
 	name.className = "comment-name";
-	name.textContent = comment.name;
+	name.textContent = comment.private && comment.recipient
+		? `${comment.name}@${comment.recipient}`
+		: comment.name;
 	header.append(name);
 
 	const date = document.createElement("time");
@@ -164,11 +166,57 @@ function createCommentElement(comment) {
 	}).format(new Date(comment.date));
 	header.append(date);
 
-	const text = document.createElement("p");
-	text.className = "comment-text";
-	text.textContent = comment.comment;
+	article.append(header);
+	if (comment.private) {
+		article.classList.add("comment--private");
+		const cover = document.createElement("div");
+		cover.className = "private-comment-cover";
+		cover.setAttribute("aria-label", "Comentario privado");
 
-	article.append(header, text);
+		const prompt = document.createElement("p");
+		prompt.textContent = "Comentario privado. Introduce usuario:contraseña del remitente o destinatario para mostrarlo.";
+		const form = document.createElement("form");
+		form.className = "private-comment-form";
+		const credentials = document.createElement("input");
+		credentials.type = "password";
+		credentials.name = "credentials";
+		credentials.autocomplete = "current-password";
+		credentials.placeholder = "usuario:contraseña";
+		credentials.required = true;
+		const unlock = document.createElement("button");
+		unlock.type = "submit";
+		unlock.textContent = "Mostrar comentario";
+		const status = document.createElement("small");
+		status.className = "private-comment-status";
+		status.setAttribute("role", "status");
+		form.append(credentials, unlock, status);
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			unlock.disabled = true;
+			status.textContent = "Comprobando...";
+			status.classList.remove("comment-status--error");
+			try {
+				const text = window.COMMENTS_API_URL
+					? await unlockAppsScriptComment(comment.requestId, credentials.value)
+					: await unlockLocalComment(comment.requestId, credentials.value);
+				const paragraph = document.createElement("p");
+				paragraph.className = "comment-text";
+				paragraph.textContent = text;
+				cover.replaceWith(paragraph);
+			} catch (error) {
+				status.textContent = error.message || "No se pudo mostrar el comentario.";
+				status.classList.add("comment-status--error");
+				unlock.disabled = false;
+			}
+		});
+		cover.append(prompt, form);
+		article.append(cover);
+	} else {
+		const text = document.createElement("p");
+		text.className = "comment-text";
+		text.textContent = comment.comment;
+		article.append(text);
+	}
 	return article;
 }
 
@@ -249,14 +297,97 @@ function loadAppsScriptComments(timeoutMs = 15000) {
 	});
 }
 
+function submitAppsScriptRequest(fields, timeoutMs = 20000) {
+	const iframe = document.querySelector("#comment-transport");
+	const requestId = fields.requestId;
+	return new Promise((resolve, reject) => {
+		const timeout = window.setTimeout(() => finish(new Error("Apps Script no respondió. Inténtalo de nuevo.")), timeoutMs);
+
+		function cleanup() {
+			window.clearTimeout(timeout);
+			window.removeEventListener("message", handleMessage);
+		}
+		function finish(error, result) {
+			cleanup();
+			if (error) {
+				reject(error);
+			} else {
+				resolve(result);
+			}
+		}
+		function handleMessage(event) {
+			const isAppsScriptResponse =
+				event.origin === "https://script.google.com" ||
+				/^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/i.test(event.origin);
+			if (!isAppsScriptResponse || event.data?.requestId !== requestId) {
+				return;
+			}
+			if (event.data.ok) {
+				finish(null, event.data);
+			} else {
+				finish(Object.assign(new Error(event.data.error), { status: event.data.status }));
+			}
+		}
+
+		window.addEventListener("message", handleMessage);
+		const form = document.createElement("form");
+		form.method = "post";
+		form.action = window.COMMENTS_API_URL;
+		form.target = iframe.name;
+		form.hidden = true;
+		for (const [name, value] of Object.entries(fields)) {
+			const input = document.createElement("input");
+			input.type = "hidden";
+			input.name = name;
+			input.value = value;
+			form.append(input);
+		}
+		document.body.append(form);
+		form.submit();
+		form.remove();
+	});
+}
+
+async function unlockLocalComment(requestId, credentials) {
+	const response = await fetch("/api/comments/unlock", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ requestId, credentials })
+	});
+	const result = await response.json();
+	if (!response.ok) {
+		throw Object.assign(new Error(result.error || "No se pudo mostrar el comentario."), {
+			status: response.status
+		});
+	}
+	return result.comment;
+}
+
+async function unlockAppsScriptComment(commentId, credentials) {
+	const separator = credentials.indexOf(":");
+	const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+	const result = await submitAppsScriptRequest({
+		action: "unlock",
+		requestId,
+		commentId,
+		username: separator === -1 ? credentials : credentials.slice(0, separator).trim(),
+		password: separator === -1 ? "" : credentials.slice(separator + 1)
+	});
+	return result.comment;
+}
+
 let commentListRevision = 0;
 
 async function submitAppsScriptComment(credentials, comment) {
 	const iframe = document.querySelector("#comment-transport");
 	const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 	const previousComments = appsScriptCommentsSnapshot || (await loadAppsScriptComments()).comments;
-	const separator = credentials.indexOf(":");
-	const username = (separator === -1 ? credentials : credentials.slice(0, separator)).trim();
+	const recipientSeparator = credentials.lastIndexOf("@");
+	const recipientProvided = recipientSeparator >= 0;
+	const senderCredentials = recipientProvided ? credentials.slice(0, recipientSeparator) : credentials;
+	const recipient = recipientProvided ? credentials.slice(recipientSeparator + 1).trim() : "";
+	const separator = senderCredentials.indexOf(":");
+	const username = (separator === -1 ? senderCredentials : senderCredentials.slice(0, separator)).trim();
 
 	return new Promise((resolve, reject) => {
 		let settled = false;
@@ -320,6 +451,7 @@ async function submitAppsScriptComment(credentials, comment) {
 					comments.find((entry) =>
 						entry.name === username &&
 						entry.comment === comment &&
+						entry.private === recipientProvided &&
 						!previousComments.some((previous) =>
 							previous.date === entry.date &&
 							previous.name === entry.name &&
@@ -357,7 +489,9 @@ async function submitAppsScriptComment(credentials, comment) {
 
 		for (const [name, value] of Object.entries({
 			username,
-			password: separator === -1 ? "" : credentials.slice(separator + 1),
+			password: separator === -1 ? "" : senderCredentials.slice(separator + 1),
+			recipient,
+			recipientProvided: String(recipientProvided),
 			comment,
 			requestId
 		})) {
@@ -416,7 +550,9 @@ if (commentForm) {
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
 						name: formData.get("name"),
-						comment: formData.get("comment")
+						comment: formData.get("comment"),
+						requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+						recipientProvided: String(String(formData.get("name")).includes("@"))
 					})
 				});
 				const result = await response.json();
@@ -441,9 +577,9 @@ if (commentForm) {
 		} catch (error) {
 			if (error.status === 401) {
 				status.classList.add("comment-status--error");
-				status.textContent = error.message || "Tienes que escribirme a mí para conseguir un usuario y contraseña y así poder comentar.";
+				status.textContent = error.message || "Usuario inexistente. Tienes que contactar con Andrés para conseguir un usuario y contraseña y así poder comentar.";
 			} else {
-				status.classList.remove("comment-status--error");
+				status.classList.add("comment-status--error");
 				status.textContent = error.message || "No se pudo guardar el comentario.";
 			}
 			console.error(error);

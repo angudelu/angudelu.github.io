@@ -24,6 +24,7 @@ INVALID_CREDENTIALS_MESSAGE = (
     "Tienes que escribirme a mí para conseguir un usuario y contraseña "
     "y así poder comentar."
 )
+INVALID_RECIPIENT_MESSAGE = "destinatario no existente"
 MISSING_PASSWORD_MESSAGE = (
     'tienes que introducir el usuario y contraseña en la misma caja de esta forma: '
     '"usuario:contraseña"'
@@ -47,7 +48,10 @@ class SiteHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         request_path = unquote(urlsplit(self.path).path).replace("\\", "/")
-        if request_path.rsplit("/", 1)[-1].casefold() == USERS_FILE.name.casefold():
+        if request_path.rsplit("/", 1)[-1].casefold() in {
+            USERS_FILE.name.casefold(),
+            COMMENTS_FILE.name.casefold(),
+        }:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         if request_path == "/api/comments":
@@ -60,7 +64,17 @@ class SiteHandler(SimpleHTTPRequestHandler):
                                 if not line.strip() or line.lstrip().startswith("#"):
                                     continue
                                 try:
-                                    comments.append(json.loads(line))
+                                    saved_comment = json.loads(line)
+                                    if saved_comment.get("private"):
+                                        comments.append({
+                                            "date": saved_comment["date"],
+                                            "name": saved_comment["name"],
+                                            "recipient": saved_comment.get("recipient", ""),
+                                            "requestId": saved_comment["requestId"],
+                                            "private": True,
+                                        })
+                                    else:
+                                        comments.append(saved_comment)
                                 except json.JSONDecodeError as error:
                                     raise ValueError(
                                         f"Invalid comment data on line {line_number}"
@@ -75,22 +89,26 @@ class SiteHandler(SimpleHTTPRequestHandler):
             return
         super().do_GET()
 
+    def load_users(self):
+        with users_lock:
+            with USERS_FILE.open("r", encoding="utf-8") as file:
+                entries = {}
+                for line_number, line in enumerate(file, start=1):
+                    if not line.strip() or line.lstrip().startswith("#"):
+                        continue
+                    fields = line.rstrip("\r\n").split(":")
+                    if len(fields) != 3 or not fields[0]:
+                        raise ValueError(f"Invalid user entry on line {line_number}")
+                    entries[fields[0]] = (bytes.fromhex(fields[1]), fields[2])
+        return entries
+
     def verify_credentials(self, credentials):
         username, separator, password = credentials.partition(":")
         if not separator:
             username = credentials
 
         try:
-            with users_lock:
-                with USERS_FILE.open("r", encoding="utf-8") as file:
-                    entries = {}
-                    for line_number, line in enumerate(file, start=1):
-                        if not line.strip() or line.lstrip().startswith("#"):
-                            continue
-                        fields = line.rstrip("\r\n").split(":")
-                        if len(fields) != 3 or not fields[0]:
-                            raise ValueError(f"Invalid user entry on line {line_number}")
-                        entries[fields[0]] = (bytes.fromhex(fields[1]), fields[2])
+            entries = self.load_users()
         except OSError as error:
             self.log_error("Could not read users file: %s", error)
             raise
@@ -110,7 +128,8 @@ class SiteHandler(SimpleHTTPRequestHandler):
         return username, None
 
     def do_POST(self):
-        if urlsplit(self.path).path != "/api/comments":
+        request_path = urlsplit(self.path).path
+        if request_path not in {"/api/comments", "/api/comments/unlock"}:
             self.send_json(HTTPStatus.NOT_FOUND, {"error": "Ruta no encontrada."})
             return
 
@@ -137,6 +156,10 @@ class SiteHandler(SimpleHTTPRequestHandler):
             self.send_json(HTTPStatus.BAD_REQUEST, {"error": "El comentario no es válido."})
             return
 
+        if request_path == "/api/comments/unlock":
+            self.unlock_comment(payload)
+            return
+
         credentials = payload.get("name")
         comment_text = payload.get("comment")
         if not isinstance(credentials, str) or not isinstance(comment_text, str):
@@ -148,9 +171,17 @@ class SiteHandler(SimpleHTTPRequestHandler):
         if len(credentials) > MAX_CREDENTIALS_LENGTH:
             self.send_json(HTTPStatus.UNAUTHORIZED, {"error": INVALID_CREDENTIALS_MESSAGE})
             return
+        at_index = credentials.rfind("@")
+        recipient = credentials[at_index + 1:].strip() if at_index >= 0 else ""
+        recipient_provided = payload.get("recipientProvided") is True or at_index >= 0
+        sender_credentials = credentials[:at_index] if at_index >= 0 else credentials
 
         try:
-            username, authentication_error = self.verify_credentials(credentials)
+            username, authentication_error = self.verify_credentials(sender_credentials)
+            if not authentication_error and recipient_provided and (
+                not recipient or recipient not in self.load_users()
+            ):
+                authentication_error = INVALID_RECIPIENT_MESSAGE
         except (OSError, ValueError) as error:
             self.log_error("Could not verify comment credentials: %s", error)
             self.send_json(
@@ -159,7 +190,12 @@ class SiteHandler(SimpleHTTPRequestHandler):
             )
             return
         if authentication_error:
-            self.send_json(HTTPStatus.UNAUTHORIZED, {"error": authentication_error})
+            status = (
+                HTTPStatus.BAD_REQUEST
+                if authentication_error == INVALID_RECIPIENT_MESSAGE
+                else HTTPStatus.UNAUTHORIZED
+            )
+            self.send_json(status, {"error": authentication_error})
             return
 
         if not comment_text:
@@ -176,7 +212,15 @@ class SiteHandler(SimpleHTTPRequestHandler):
             "date": datetime.now().astimezone().isoformat(timespec="seconds"),
             "name": username,
             "comment": comment_text,
+            "private": recipient_provided,
         }
+        if recipient_provided:
+            new_comment["recipient"] = recipient
+        request_id = payload.get("requestId")
+        new_comment["requestId"] = (
+            request_id if isinstance(request_id, str) and request_id
+            else os.urandom(16).hex()
+        )
         try:
             with comments_lock:
                 today = datetime.now().astimezone().date()
@@ -206,7 +250,55 @@ class SiteHandler(SimpleHTTPRequestHandler):
             )
             return
 
-        self.send_json(HTTPStatus.CREATED, {"comment": new_comment})
+        public_comment = {
+            "date": new_comment["date"],
+            "name": username,
+            "requestId": new_comment["requestId"],
+            "private": new_comment["private"],
+        }
+        if new_comment["private"]:
+            public_comment["recipient"] = recipient
+        else:
+            public_comment["comment"] = comment_text
+        self.send_json(HTTPStatus.CREATED, {"comment": public_comment})
+
+    def unlock_comment(self, payload):
+        credentials = payload.get("credentials")
+        request_id = payload.get("requestId")
+        if not isinstance(credentials, str) or not isinstance(request_id, str):
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Solicitud no válida."})
+            return
+        try:
+            username, authentication_error = self.verify_credentials(credentials.strip())
+            if authentication_error:
+                self.send_json(HTTPStatus.UNAUTHORIZED, {"error": authentication_error})
+                return
+            with comments_lock:
+                if not COMMENTS_FILE.exists():
+                    self.send_json(HTTPStatus.NOT_FOUND, {"error": "No se encontró el comentario privado."})
+                    return
+                with COMMENTS_FILE.open("r", encoding="utf-8") as file:
+                    private_comment = None
+                    for line in file:
+                        if not line.strip() or line.lstrip().startswith("#"):
+                            continue
+                        record = json.loads(line)
+                        if record.get("requestId") == request_id and record.get("private"):
+                            private_comment = record
+                            break
+            if private_comment is None:
+                self.send_json(HTTPStatus.NOT_FOUND, {"error": "No se encontró el comentario privado."})
+                return
+            if username not in {private_comment["name"], private_comment["recipient"]}:
+                self.send_json(HTTPStatus.FORBIDDEN, {"error": "No tienes permiso para mostrar este comentario."})
+                return
+            self.send_json(HTTPStatus.OK, {"comment": private_comment["comment"]})
+        except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+            self.log_error("Could not unlock comment: %s", error)
+            self.send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {"error": "No se pudo mostrar el comentario privado."},
+            )
 
 
 if __name__ == "__main__":

@@ -30,6 +30,8 @@ Si el nombre ya existe, `addUsers` cancela la operación completa y conserva `NE
 
 El servidor limita cada cuenta a **5 comentarios por día**, según la zona horaria configurada en el proyecto de Apps Script, y rechaza los comentarios que superen **280 caracteres**. Estos límites se comprueban en el servidor, no solo en el formulario. Tras modificar `apps-script/Code.gs`, publica una nueva versión de la aplicación web de Apps Script para aplicar también allí los límites.
 
+Para publicar un comentario privado, escribe `remitente:contraseña@destinatario` en la caja de usuario y contraseña. El destinatario debe ser una cuenta existente. El comentario se muestra oculto; para desbloquearlo, el remitente o el destinatario debe introducir `usuario:contraseña` en la caja del comentario. El texto privado no se incluye en la lista pública de comentarios.
+
 ## 2. Conectar GitHub Pages
 
 En `comments-config.js`, sustituye la cadena vacía por la URL `/exec` copiada:
@@ -40,4 +42,4 @@ window.COMMENTS_API_URL = "https://script.google.com/macros/s/ID_DE_IMPLEMENTACI
 
 Guarda y publica el cambio en GitHub. Después abre la URL de GitHub Pages y prueba a enviar un comentario con `usuario:contraseña`.
 
-Si más adelante editas `Code.gs`, crea una versión nueva de la implementación web para que los cambios entren en vigor. Si ya existe la hoja, ejecuta `setup()` otra vez para añadir la columna de ID de solicitud. La respuesta vuelve al nivel superior de la página (`window.top`) usando el `ALLOWED_ORIGIN` exacto; si el navegador no entrega esa respuesta al formulario, la página consulta repetidamente la lista y espera a que aparezca el comentario nuevo. El envío no depende del evento de carga del iframe. Tras cambiar `app.js`, publica también el HTML actualizado para que GitHub Pages sirva el parámetro de versión nuevo y no reutilice una copia antigua en caché.
+Si más adelante editas `Code.gs`, crea una versión nueva de la implementación web para que los cambios entren en vigor. Después de actualizarlo, ejecuta `setup()` una vez para asegurar las columnas de destinatario y privacidad en la hoja existente; conserva las publicaciones guardadas. La respuesta vuelve al nivel superior de la página (`window.top`) usando el `ALLOWED_ORIGIN` exacto; si el navegador no entrega esa respuesta al formulario, la página consulta repetidamente la lista y espera a que aparezca el comentario nuevo. El envío no depende del evento de carga del iframe. Tras cambiar `app.js`, publica también el HTML actualizado para que GitHub Pages sirva el parámetro de versión nuevo y no reutilice una copia antigua en caché.

@@ -1,4 +1,1 @@
 # Formato: AAAA-MM-DD|texto|ruta-de-imagen|enlace-de-la-imagen (imagen y enlace opcionales)
-2026-10-10|Primer post magenta, solo texto.||
-2026-10-14|Un post magenta con imagen.|ice.png|
-2026-10-18|Imagen magenta con enlace al sitio.|ice.png|https://yalohacemosnosotros.es/

@@ -1,4 +1,1 @@
 # Formato: AAAA-MM-DD|texto|ruta-de-imagen|enlace-de-la-imagen (imagen y enlace opcionales)
-2026-10-09|Primer post amarillo, solo texto.||
-2026-10-15|Imagen amarilla sin enlace.|ice.png|
-2026-10-18|Imagen amarilla que abre el sitio indicado.|ice.png|https://yalohacemosnosotros.es/

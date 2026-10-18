@@ -53,6 +53,15 @@ h1 { margin: 0 0 18px; color: #d00083; text-align: center; font: bold 25px "Comi
 .comment-count { justify-self: end; color: #666; font-size: 12px; }
 .comment-list { display: grid; gap: 12px; margin-top: 18px; }
 .comment { padding: 14px; border: 1px solid #ddd; border-radius: 4px; background: #fff; }
+.comment--private { background: #111; color: #fff; }
+.private-comment-cover { margin-top: 12px; padding: 16px; background: #000; color: #fff; }
+.private-comment-cover > p { margin: 0 0 12px; }
+.private-comment-form { display: flex; flex-wrap: wrap; gap: 8px; }
+.private-comment-form input { flex: 1 1 220px; min-width: 0; padding: 10px; border: 1px solid #aaa; border-radius: 4px; font: inherit; }
+.private-comment-form button { padding: 10px 14px; border: 0; border-radius: 4px; background: #fff; color: #111; font: inherit; cursor: pointer; }
+.private-comment-form button:disabled { cursor: wait; opacity: .65; }
+.private-comment-status { flex-basis: 100%; min-height: 1em; color: #ddd; }
+.private-comment-status.comment-status--error { color: #ff8c8c; }
 .comment-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; }
 .comment-name { overflow-wrap: anywhere; }
 .comment-date { color: #666; font-size: 12px; }

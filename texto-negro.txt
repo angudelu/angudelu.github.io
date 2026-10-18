@@ -1,4 +1,3 @@
 # Formato: AAAA-MM-DD|texto|ruta-de-imagen|enlace-de-la-imagen (imagen y enlace opcionales)
-2026-10-12|Primer post negro, solo texto.||
-2026-10-17|Post negro con imagen y enlace.|ice.png|https://yalohacemosnosotros.es/
-2026-10-18|Post negro de texto sin imagen.||
+2026-10-17|esto es un texto de prueba no importante\n y una imagen aleatoria de mi galería(si la pulsas te lleva a un vídeo cute)|ice.png|https://youtu.be/PJnn-wMPU9w
+

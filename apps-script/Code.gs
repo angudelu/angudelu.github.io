@@ -7,6 +7,7 @@ const NEW_USERS_PROPERTY = "NEW_USERS_JSON";
 const MAX_COMMENT_LENGTH = 280;
 const MAX_USERNAME_LENGTH = 60;
 const MAX_COMMENTS_PER_DAY = 5;
+const INVALID_RECIPIENT_MESSAGE = "destinatario no existente";
 
 function setup() {
   const properties = PropertiesService.getScriptProperties();
@@ -31,10 +32,10 @@ function setup() {
   let sheet = spreadsheet.getSheetByName(COMMENTS_SHEET_NAME);
   if (!sheet) {
     sheet = spreadsheet.insertSheet(COMMENTS_SHEET_NAME);
-    sheet.appendRow(["fecha", "usuario", "comentario", "id_solicitud"]);
-  } else if (sheet.getRange(1, 4).getValue() !== "id_solicitud") {
-    sheet.getRange(1, 4).setValue("id_solicitud");
   }
+  sheet.getRange(1, 1, 1, 6).setValues([[
+    "fecha", "usuario", "comentario", "id_solicitud", "destinatario", "privado"
+  ]]);
 
   if (!properties.getProperty(COMMENTS_USERS_PROPERTY)) {
     const initialUsersJson = properties.getProperty(INITIAL_USERS_PROPERTY);
@@ -168,9 +169,15 @@ function doPost(event) {
     });
   }
 
+  if (parameters.action === "unlock") {
+    return unlockPrivateComment_(parameters, requestId);
+  }
+
   const username = String(parameters.username || "").trim();
   const password = String(parameters.password || "");
   const comment = String(parameters.comment || "").trim();
+  const recipient = String(parameters.recipient || "").trim();
+  const recipientProvided = parameters.recipientProvided === "true";
   let authentication;
   try {
     authentication = verifyUser_(username, password);
@@ -189,6 +196,14 @@ function doPost(event) {
       ok: false,
       status: 401,
       error: authentication.error
+    });
+  }
+  if (recipientProvided && (!recipient || !userExists_(recipient))) {
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 400,
+      error: INVALID_RECIPIENT_MESSAGE
     });
   }
 
@@ -224,7 +239,8 @@ function doPost(event) {
       date: new Date().toISOString(),
       name: username,
       comment: comment,
-      requestId: requestId
+      requestId: requestId,
+      private: recipientProvided
     };
     const lock = LockService.getScriptLock();
     lock.waitLock(10000);
@@ -254,7 +270,9 @@ function doPost(event) {
           commentRecord.date,
           commentRecord.name,
           commentRecord.comment,
-          commentRecord.requestId
+          commentRecord.requestId,
+          recipient,
+          commentRecord.private
         ]);
       }
     } finally {
@@ -303,15 +321,22 @@ function readComments_() {
     return [];
   }
 
-  return sheet.getRange(2, 1, lastRow - 1, 4).getValues()
+  return sheet.getRange(2, 1, lastRow - 1, 6).getValues()
     .filter((row) => row[0] && row[1] && row[2])
     .reverse()
-    .map((row) => ({
-      date: row[0] instanceof Date ? row[0].toISOString() : String(row[0]),
-      name: String(row[1]),
-      comment: String(row[2]),
-      requestId: String(row[3] || "")
-    }));
+    .map((row) => {
+      const comment = {
+        date: row[0] instanceof Date ? row[0].toISOString() : String(row[0]),
+        name: String(row[1]),
+        requestId: String(row[3] || ""),
+        private: row[5] === true,
+        recipient: row[5] === true ? String(row[4] || "") : ""
+      };
+      if (!comment.private) {
+        comment.comment = String(row[2]);
+      }
+      return comment;
+    });
 }
 
 function verifyUser_(username, password) {
@@ -346,6 +371,73 @@ function verifyUser_(username, password) {
     };
   }
   return { valid: true, error: "" };
+}
+
+function userExists_(username) {
+  const usersJson = PropertiesService.getScriptProperties()
+    .getProperty(COMMENTS_USERS_PROPERTY);
+  if (!usersJson) {
+    throw new Error("No hay usuarios configurados. Ejecuta setup().");
+  }
+  return Object.prototype.hasOwnProperty.call(JSON.parse(usersJson), username);
+}
+
+function unlockPrivateComment_(parameters, requestId) {
+  const username = String(parameters.username || "").trim();
+  const password = String(parameters.password || "");
+  const commentId = String(parameters.commentId || "");
+  try {
+    const authentication = verifyUser_(username, password);
+    if (!authentication.valid) {
+      return postMessageResponse_({
+        requestId: requestId,
+        ok: false,
+        status: 401,
+        error: authentication.error
+      });
+    }
+    const spreadsheetId = PropertiesService.getScriptProperties()
+      .getProperty(COMMENTS_SPREADSHEET_PROPERTY);
+    const sheet = spreadsheetId
+      ? SpreadsheetApp.openById(spreadsheetId).getSheetByName(COMMENTS_SHEET_NAME)
+      : null;
+    if (!sheet) {
+      throw new Error("No existe la hoja de comentarios.");
+    }
+    const lastRow = sheet.getLastRow();
+    const rows = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 6).getValues() : [];
+    const record = rows.find((row) => String(row[3] || "") === commentId && row[5] === true);
+    if (!record) {
+      return postMessageResponse_({
+        requestId: requestId,
+        ok: false,
+        status: 404,
+        error: "No se encontró el comentario privado."
+      });
+    }
+    if (username !== String(record[1]) && username !== String(record[4])) {
+      return postMessageResponse_({
+        requestId: requestId,
+        ok: false,
+        status: 403,
+        error: "No tienes permiso para mostrar este comentario."
+      });
+    }
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: true,
+      status: 200,
+      comment: String(record[2])
+    });
+  } catch (error) {
+    console.error(error);
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 500,
+      error: "No se pudo mostrar el comentario privado."
+    });
+  }
 }
 
 function hashPassword_(username, password, salt, pepper) {
