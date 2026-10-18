@@ -23,3 +23,12 @@ _he añadido comentarios privados!!!_
 escribe "@destinatario" después de tu usuario y contraseña para publicar un comentario que sólo podréis ver tú y tu amigo (ni siquiera lo podré ver yo).
 por ejemplo para la imagen adjunta la formula sería "andreaqtzz:contraseña@angudelu"
 |img\img181020261119.png|
+
+2026-10-18 18:00|
+_cambio en los comentarios privados_
+ahora es más fácil enviar mensajes privados!
+_editar, eliminar y responder_
+ahora salen unos insectos encima de los mensajes, son respuestas de otras personas!
+cada persona puede aportar un insecto, mientras no haya 5 o más, sólo pulsa el icono de los tres puntos que hay en cada mensaje y selecciona "responder"
+en ese mismo menú desplegable también verás la opción de editar o eliminar tus propios mensajes
+|iconoresp1.svg|https://youtu.be/6ZTTzcwVd94
