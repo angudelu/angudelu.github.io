@@ -14,6 +14,20 @@ GitHub Pages sirve archivos estáticos y no ejecuta `server.py`. Para habilitar 
 
 Los comentarios se guardan en la hoja creada por `setup`; la hoja no necesita hacerse pública. Los hashes y la clave se quedan en las propiedades privadas del proyecto Apps Script.
 
+## Añadir usuarios autorizados
+
+1. En Apps Script abre **Configuración del proyecto > Propiedades del script** y añade `NEW_USERS_JSON`. Su valor debe ser un objeto JSON con los nombres y contraseñas nuevas, por ejemplo:
+
+   ```json
+   {"nuevo_usuario":"una contraseña larga"}
+   ```
+
+   Puedes incluir varios usuarios en el mismo objeto. No edites ni reemplaces `COMMENTS_USERS` o `COMMENTS_PEPPER`.
+2. En el editor selecciona `addUsers` y pulsa **Ejecutar**. Si todo va bien, Apps Script convierte las contraseñas en hashes con sal, las añade a la lista existente y borra `NEW_USERS_JSON`.
+3. Comprueba el registro de ejecución. No hace falta volver a implementar el sitio web; las cuentas nuevas se pueden usar enseguida.
+
+Si el nombre ya existe, `addUsers` cancela la operación completa y conserva `NEW_USERS_JSON` para que puedas corregirlo. Los nombres de usuario no pueden contener `:`; las contraseñas pueden contenerlo.
+
 ## 2. Conectar GitHub Pages
 
 En `comments-config.js`, sustituye la cadena vacía por la URL `/exec` copiada:

@@ -3,6 +3,7 @@ const COMMENTS_SPREADSHEET_PROPERTY = "COMMENTS_SPREADSHEET_ID";
 const COMMENTS_USERS_PROPERTY = "COMMENTS_USERS";
 const COMMENTS_PEPPER_PROPERTY = "COMMENTS_PEPPER";
 const INITIAL_USERS_PROPERTY = "INITIAL_USERS_JSON";
+const NEW_USERS_PROPERTY = "NEW_USERS_JSON";
 const MAX_COMMENT_LENGTH = 1200;
 const MAX_USERNAME_LENGTH = 60;
 const MAX_COMMENTS_PER_MINUTE = 5;
@@ -76,6 +77,60 @@ function setup() {
   }
 
   Logger.log("Hoja privada de comentarios creada: " + spreadsheet.getUrl());
+}
+
+function addUsers() {
+  const properties = PropertiesService.getScriptProperties();
+  const newUsersJson = properties.getProperty(NEW_USERS_PROPERTY);
+  if (!newUsersJson) {
+    throw new Error("Añade NEW_USERS_JSON a las propiedades del script antes de ejecutar addUsers.");
+  }
+
+  const usersToAdd = JSON.parse(newUsersJson);
+  if (!usersToAdd || typeof usersToAdd !== "object" || Array.isArray(usersToAdd)) {
+    throw new Error("NEW_USERS_JSON debe ser un objeto JSON de usuarios y contraseñas.");
+  }
+
+  const usersJson = properties.getProperty(COMMENTS_USERS_PROPERTY);
+  const pepper = properties.getProperty(COMMENTS_PEPPER_PROPERTY);
+  if (!usersJson || !pepper) {
+    throw new Error("No hay usuarios configurados. Ejecuta setup() primero.");
+  }
+
+  const users = JSON.parse(usersJson);
+  const usernames = Object.keys(usersToAdd);
+  if (usernames.length === 0) {
+    throw new Error("NEW_USERS_JSON debe contener al menos un usuario.");
+  }
+
+  usernames.forEach((username) => {
+    const password = usersToAdd[username];
+    if (
+      !username ||
+      username !== username.trim() ||
+      username.includes(":") ||
+      username.length > MAX_USERNAME_LENGTH ||
+      typeof password !== "string" ||
+      !password
+    ) {
+      throw new Error("Cada usuario debe tener un nombre válido y una contraseña no vacía.");
+    }
+    if (Object.prototype.hasOwnProperty.call(users, username)) {
+      throw new Error("El usuario «" + username + "» ya existe; no se modificó ningún usuario.");
+    }
+  });
+
+  usernames.forEach((username) => {
+    const salt = Utilities.getUuid();
+    users[username] = {
+      salt: salt,
+      hash: hashPassword_(username, usersToAdd[username], salt, pepper)
+    };
+  });
+
+  properties.setProperty(COMMENTS_USERS_PROPERTY, JSON.stringify(users));
+  properties.deleteProperty(NEW_USERS_PROPERTY);
+  Logger.log("Usuarios nuevos añadidos: " + usernames.join(", "));
 }
 
 function doGet(event) {
