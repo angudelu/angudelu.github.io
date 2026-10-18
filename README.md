@@ -23,10 +23,18 @@ Sustituye `remitente` y `contraseña` por tus credenciales y `destinatario` por 
 
 El comentario aparecerá oculto, con el encabezado `remitente@destinatario`, para que se identifique quién lo envió y a quién va dirigido. Para verlo, el remitente o el destinatario debe escribir sus propias credenciales con el formato `usuario:contraseña` en la caja negra del comentario y pulsar **Mostrar comentario**. Otras cuentas no pueden desbloquearlo.
 
+## Editar o eliminar un comentario
+
+Pulsa el icono de tres puntos del comentario y elige **Editar** o **Eliminar**. Ambas acciones requieren las credenciales del autor (`usuario:contraseña`); no se permite modificar comentarios de otra cuenta. Al editar, el texto actualizado conserva la fecha original y aparece marcado como **(editado)**. Los comentarios eliminados se sustituyen por el texto *comentario eliminado* en su posición.
+
+Si el comentario es privado, primero carga su texto desde el formulario de edición con las credenciales del autor. El comentario seguirá oculto para los demás después de guardarlo.
+
 ## Mensajes de error habituales
 
-- **tienes que introducir el usuario y contraseña en la misma caja...**: escribe ambos en el mismo campo, separados por `:`.
-- **usuario existente, contraseña incorrecta**: revisa la contraseña.
+- **Introduce el usuario y la contraseña separados por dos puntos**: escribe ambos en el campo, separados por `:`.
+- **Usuario no existente** o **La contraseña es incorrecta**: revisa las credenciales.
+- **El usuario y la contraseña no corresponden a este comentario**: solo el autor puede editarlo o eliminarlo; verifica que uses la cuenta con la que lo publicaste.
+- **No se pudo modificar/eliminar el comentario**: revisa la conexión e inténtalo de nuevo.
 - **destinatario no existente**: comprueba el nombre de la cuenta destinataria.
 - **Has alcanzado el límite de 5 comentarios por día**: espera al siguiente día para volver a comentar.
 - **El comentario admite hasta 280 caracteres**: acorta el texto hasta el máximo indicado por el contador.

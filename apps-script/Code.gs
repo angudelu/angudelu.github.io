@@ -6,6 +6,7 @@ const INITIAL_USERS_PROPERTY = "INITIAL_USERS_JSON";
 const NEW_USERS_PROPERTY = "NEW_USERS_JSON";
 const MAX_COMMENT_LENGTH = 280;
 const MAX_USERNAME_LENGTH = 60;
+const MAX_CREDENTIALS_LENGTH = 160;
 const MAX_COMMENTS_PER_DAY = 5;
 const INVALID_RECIPIENT_MESSAGE = "destinatario no existente";
 
@@ -33,8 +34,9 @@ function setup() {
   if (!sheet) {
     sheet = spreadsheet.insertSheet(COMMENTS_SHEET_NAME);
   }
-  sheet.getRange(1, 1, 1, 6).setValues([[
-    "fecha", "usuario", "comentario", "id_solicitud", "destinatario", "privado"
+  sheet.getRange(1, 1, 1, 8).setValues([[
+    "fecha", "usuario", "comentario", "id_solicitud", "destinatario", "privado",
+    "editado", "eliminado"
   ]]);
 
   if (!properties.getProperty(COMMENTS_USERS_PROPERTY)) {
@@ -171,6 +173,9 @@ function doPost(event) {
 
   if (parameters.action === "unlock") {
     return unlockPrivateComment_(parameters, requestId);
+  }
+  if (parameters.action === "edit" || parameters.action === "delete") {
+    return manageComment_(parameters, requestId);
   }
 
   const username = String(parameters.username || "").trim();
@@ -321,8 +326,8 @@ function readComments_() {
     return [];
   }
 
-  return sheet.getRange(2, 1, lastRow - 1, 6).getValues()
-    .filter((row) => row[0] && row[1] && row[2])
+  return sheet.getRange(2, 1, lastRow - 1, 8).getValues()
+    .filter((row) => row[0] && row[1] && (row[2] || row[7] === true))
     .reverse()
     .map((row) => {
       const comment = {
@@ -330,9 +335,11 @@ function readComments_() {
         name: String(row[1]),
         requestId: String(row[3] || ""),
         private: row[5] === true,
-        recipient: row[5] === true ? String(row[4] || "") : ""
+        recipient: row[5] === true ? String(row[4] || "") : "",
+        edited: Boolean(row[6]),
+        deleted: row[7] === true
       };
-      if (!comment.private) {
+      if (!comment.private && !comment.deleted) {
         comment.comment = String(row[2]);
       }
       return comment;
@@ -348,17 +355,17 @@ function verifyUser_(username, password) {
   }
 
   const users = JSON.parse(usersJson);
+  if (!username || username.length > MAX_USERNAME_LENGTH || !password) {
+    return {
+      valid: false,
+      error: 'Introduce el usuario y la contraseña separados por dos puntos (:), por ejemplo "usuario:contraseña".'
+    };
+  }
   const user = users[username];
   if (!user) {
     return {
       valid: false,
-      error: "Tienes que escribirme a mí para conseguir un usuario y contraseña y así poder comentar."
-    };
-  }
-  if (!username || username.length > MAX_USERNAME_LENGTH || !password) {
-    return {
-      valid: false,
-      error: 'tienes que introducir el usuario y contraseña en la misma caja de esta forma: "usuario:contraseña"'
+      error: "Usuario no existente. Comprueba el nombre o contacta con Andrés para conseguir una cuenta."
     };
   }
   if (!constantTimeEquals_(
@@ -367,10 +374,156 @@ function verifyUser_(username, password) {
   )) {
     return {
       valid: false,
-      error: "usuario existente, contraseña incorrecta"
+      error: "La contraseña es incorrecta."
     };
   }
   return { valid: true, error: "" };
+}
+
+function manageComment_(parameters, requestId) {
+  const username = String(parameters.username || "").trim();
+  const password = String(parameters.password || "");
+  const commentId = String(parameters.commentId || "");
+  const action = String(parameters.action || "");
+  const operation = String(parameters.operation || "");
+  if (
+    parameters.credentialsProvided !== "true" ||
+    !commentId ||
+    !/^[\w-]{1,100}$/.test(commentId) ||
+    (action === "edit" && !["load", "save"].includes(operation))
+  ) {
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 400,
+      error: 'Introduce el usuario y la contraseña separados por dos puntos (:), por ejemplo "usuario:contraseña".'
+    });
+  }
+
+  let authentication;
+  try {
+    authentication = verifyUser_(username, password);
+  } catch (error) {
+    console.error(error);
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 500,
+      error: "No se pudo verificar el usuario. Inténtalo más tarde."
+    });
+  }
+  if (!authentication.valid) {
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 401,
+      error: authentication.error
+    });
+  }
+  if (username.length + password.length + 1 > MAX_CREDENTIALS_LENGTH) {
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 400,
+      error: "El usuario y la contraseña superan el límite permitido."
+    });
+  }
+
+  try {
+    const properties = PropertiesService.getScriptProperties();
+    const spreadsheetId = properties.getProperty(COMMENTS_SPREADSHEET_PROPERTY);
+    const sheet = spreadsheetId
+      ? SpreadsheetApp.openById(spreadsheetId).getSheetByName(COMMENTS_SHEET_NAME)
+      : null;
+    if (!sheet) {
+      throw new Error("No existe la hoja de comentarios.");
+    }
+
+    const lock = LockService.getScriptLock();
+    lock.waitLock(10000);
+    let result;
+    let failure;
+    try {
+      const lastRow = sheet.getLastRow();
+      const rows = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 8).getValues() : [];
+      const rowIndex = rows.findIndex((row) => String(row[3] || "") === commentId);
+      if (rowIndex < 0) {
+        failure = { status: 404, error: "No se encontró el comentario." };
+      } else {
+        const row = rows[rowIndex];
+        if (String(row[1]) !== username) {
+          failure = {
+            status: 403,
+            error: "El usuario y la contraseña no corresponden a este comentario."
+          };
+        } else if (row[7] === true) {
+          failure = { status: 410, error: "Este comentario ya fue eliminado." };
+        } else if (action === "edit" && operation === "save") {
+          const text = String(parameters.comment || "").trim();
+          if (!text) {
+            failure = { status: 400, error: "Escribe un comentario antes de guardar los cambios." };
+          } else if (text.length > MAX_COMMENT_LENGTH) {
+            failure = { status: 400, error: "El comentario admite hasta 280 caracteres." };
+          } else {
+            sheet.getRange(rowIndex + 2, 3).setValue(text);
+            sheet.getRange(rowIndex + 2, 7).setValue(new Date());
+            row[2] = text;
+            row[6] = new Date();
+            result = { comment: commentFromRow_(row) };
+          }
+        } else if (action === "edit" && operation === "load") {
+          result = { comment: String(row[2]) };
+        } else if (action === "delete") {
+          sheet.getRange(rowIndex + 2, 8).setValue(true);
+          row[7] = true;
+          result = { comment: commentFromRow_(row) };
+        }
+      }
+    } finally {
+      lock.releaseLock();
+    }
+
+    if (failure) {
+      return postMessageResponse_({
+        requestId: requestId,
+        ok: false,
+        status: failure.status,
+        error: failure.error
+      });
+    }
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: true,
+      status: 200,
+      comment: result.comment
+    });
+  } catch (error) {
+    console.error(error);
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 500,
+      error: action === "edit"
+        ? "No se pudo modificar el comentario. Inténtalo más tarde."
+        : "No se pudo eliminar el comentario. Inténtalo más tarde."
+    });
+  }
+}
+
+function commentFromRow_(row) {
+  const comment = {
+    date: row[0] instanceof Date ? row[0].toISOString() : String(row[0]),
+    name: String(row[1]),
+    requestId: String(row[3] || ""),
+    private: row[5] === true,
+    recipient: row[5] === true ? String(row[4] || "") : "",
+    edited: Boolean(row[6]),
+    deleted: row[7] === true
+  };
+  if (!comment.private && !comment.deleted) {
+    comment.comment = String(row[2]);
+  }
+  return comment;
 }
 
 function userExists_(username) {
@@ -406,7 +559,9 @@ function unlockPrivateComment_(parameters, requestId) {
     }
     const lastRow = sheet.getLastRow();
     const rows = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 6).getValues() : [];
-    const record = rows.find((row) => String(row[3] || "") === commentId && row[5] === true);
+    const record = rows.find((row) =>
+      String(row[3] || "") === commentId && row[5] === true && row[7] !== true
+    );
     if (!record) {
       return postMessageResponse_({
         requestId: requestId,

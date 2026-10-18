@@ -198,6 +198,13 @@ document.querySelectorAll("[data-history-file]").forEach(async (element) => {
 });
 
 function createCommentElement(comment) {
+	if (comment.deleted) {
+		const deleted = document.createElement("p");
+		deleted.className = "comment-deleted";
+		deleted.textContent = "comentario eliminado";
+		return deleted;
+	}
+
 	const article = document.createElement("article");
 	article.className = "comment";
 
@@ -219,6 +226,12 @@ function createCommentElement(comment) {
 		timeStyle: "short"
 	}).format(new Date(comment.date));
 	header.append(date);
+	if (comment.edited) {
+		const edited = document.createElement("small");
+		edited.className = "comment-edited";
+		edited.textContent = "(editado)";
+		header.append(edited);
+	}
 
 	article.append(header);
 	if (comment.private) {
@@ -271,6 +284,175 @@ function createCommentElement(comment) {
 		text.textContent = comment.comment;
 		article.append(text);
 	}
+
+	const controls = document.createElement("div");
+	controls.className = "comment-controls";
+	const menuToggle = document.createElement("button");
+	menuToggle.className = "comment-menu-toggle";
+	menuToggle.type = "button";
+	menuToggle.textContent = "⋯";
+	menuToggle.setAttribute("aria-label", "opciones del comentario");
+	menuToggle.setAttribute("aria-expanded", "false");
+	const menu = document.createElement("div");
+	menu.className = "comment-menu";
+	menu.hidden = true;
+	const editOption = document.createElement("button");
+	editOption.type = "button";
+	editOption.textContent = "editar";
+	const deleteOption = document.createElement("button");
+	deleteOption.type = "button";
+	deleteOption.textContent = "eliminar";
+	menu.append(editOption, deleteOption);
+	controls.append(menuToggle, menu);
+
+	const management = document.createElement("div");
+	management.className = "comment-management";
+	management.hidden = true;
+	article.append(controls, management);
+
+	menuToggle.addEventListener("click", () => {
+		menu.hidden = !menu.hidden;
+		menuToggle.setAttribute("aria-expanded", String(!menu.hidden));
+	});
+
+	function showManagementForm(form, mode) {
+		management.replaceChildren(form);
+		management.hidden = false;
+		article.classList.toggle("comment--confirm-delete", mode === "delete");
+		menu.hidden = true;
+		menuToggle.setAttribute("aria-expanded", "false");
+	}
+
+	function createCredentialsField() {
+		const credentials = document.createElement("input");
+		credentials.type = "password";
+		credentials.name = "credentials";
+		credentials.autocomplete = "current-password";
+		credentials.placeholder = "usuario:contraseña";
+		credentials.required = true;
+		return credentials;
+	}
+
+	function createManagementStatus() {
+		const status = document.createElement("small");
+		status.className = "comment-management-status";
+		status.setAttribute("role", "status");
+		return status;
+	}
+
+	editOption.addEventListener("click", () => {
+		const form = document.createElement("form");
+		form.className = "comment-manage-form";
+		const credentials = createCredentialsField();
+		const editedText = document.createElement("textarea");
+		editedText.name = "comment";
+		editedText.maxLength = 280;
+		editedText.rows = 4;
+		editedText.placeholder = comment.private
+			? "carga el comentario privado para editarlo"
+			: "comentario";
+		editedText.value = comment.private ? "" : comment.comment;
+		editedText.required = !comment.private;
+		const status = createManagementStatus();
+		const buttons = document.createElement("div");
+		buttons.className = "comment-management-buttons";
+		const loadPrivate = document.createElement("button");
+		loadPrivate.type = "button";
+		loadPrivate.textContent = "cargar comentario privado";
+		const save = document.createElement("button");
+		save.type = "submit";
+		save.textContent = "guardar cambios";
+		save.disabled = comment.private;
+		const cancel = document.createElement("button");
+		cancel.type = "button";
+		cancel.className = "comment-cancel-button";
+		cancel.textContent = "cancelar";
+		buttons.append(save, cancel);
+		if (comment.private) {
+			buttons.prepend(loadPrivate);
+			loadPrivate.addEventListener("click", async () => {
+				loadPrivate.disabled = true;
+				status.textContent = "comprobando credenciales...";
+				status.classList.remove("comment-status--error");
+				try {
+					const result = await submitCommentManagement(
+						"edit", comment, credentials.value, "", "load"
+					);
+					editedText.value = result.comment;
+					editedText.required = true;
+					editedText.placeholder = "comentario";
+					loadPrivate.hidden = true;
+					save.disabled = false;
+					status.textContent = "comentario cargado";
+				} catch (error) {
+					status.textContent = error.message;
+					status.classList.add("comment-status--error");
+					loadPrivate.disabled = false;
+				}
+			});
+		}
+		cancel.addEventListener("click", () => {
+			management.hidden = true;
+			article.classList.remove("comment--confirm-delete");
+		});
+		form.append(credentials, editedText, buttons, status);
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			save.disabled = true;
+			status.textContent = "guardando cambios...";
+			status.classList.remove("comment-status--error");
+			try {
+				const result = await submitCommentManagement(
+					"edit", comment, credentials.value, editedText.value, "save"
+				);
+				commentListRevision += 1;
+				article.replaceWith(createCommentElement(result.comment));
+			} catch (error) {
+				status.textContent = error.message || "no se pudo modificar el comentario. inténtalo de nuevo";
+				status.classList.add("comment-status--error");
+				save.disabled = false;
+			}
+		});
+		showManagementForm(form, "edit");
+	});
+
+	deleteOption.addEventListener("click", () => {
+		const form = document.createElement("form");
+		form.className = "comment-manage-form";
+		const credentials = createCredentialsField();
+		const confirm = document.createElement("button");
+		confirm.type = "submit";
+		confirm.className = "comment-delete-confirm";
+		confirm.textContent = "confirmar eliminación";
+		const cancel = document.createElement("button");
+		cancel.type = "button";
+		cancel.className = "comment-cancel-button";
+		cancel.textContent = "cancelar";
+		const status = createManagementStatus();
+		cancel.addEventListener("click", () => {
+			management.hidden = true;
+			article.classList.remove("comment--confirm-delete");
+		});
+		form.append(credentials, confirm, cancel, status);
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			confirm.disabled = true;
+			status.textContent = "comprobando credenciales...";
+			status.classList.remove("comment-status--error");
+			try {
+				const result = await submitCommentManagement(
+					"delete", comment, credentials.value
+				);
+				commentListRevision += 1;
+				article.replaceWith(createCommentElement(result.comment));
+			} catch (error) {
+				status.textContent = error.message || "no se pudo eliminar el comentario. inténtalo de nuevo";
+				status.classList.add("comment-status--error");
+				confirm.disabled = false;
+			}
+		});
+		showManagementForm(form, "delete");
+	});
 	return article;
 }
 
@@ -400,6 +582,57 @@ function submitAppsScriptRequest(fields, timeoutMs = 20000) {
 		form.submit();
 		form.remove();
 	});
+}
+
+function parseManagementCredentials(credentials) {
+	const separator = credentials.indexOf(":");
+	if (separator < 1 || !credentials.slice(separator + 1)) {
+		throw new Error('Introduce el usuario y la contraseña separados por dos puntos (:), por ejemplo "usuario:contraseña".');
+	}
+	const username = credentials.slice(0, separator).trim();
+	const password = credentials.slice(separator + 1);
+	if (!username || !password) {
+		throw new Error('Introduce el usuario y la contraseña separados por dos puntos (:), por ejemplo "usuario:contraseña".');
+	}
+	return { username, password };
+}
+
+async function submitCommentManagement(action, comment, credentials, text = "", operation = "") {
+	const { username, password } = parseManagementCredentials(credentials);
+	const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+	let result;
+	if (window.COMMENTS_API_URL) {
+		result = await submitAppsScriptRequest({
+			action,
+			operation,
+			requestId,
+			commentId: comment.requestId,
+			username,
+			password,
+			credentialsProvided: "true",
+			comment: text
+		});
+	} else {
+		const response = await fetch(`/api/comments/${action}`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				commentId: comment.requestId,
+				username,
+				password,
+				credentialsProvided: true,
+				comment: text,
+				operation
+			})
+		});
+		result = await response.json();
+		if (!response.ok) {
+			throw Object.assign(new Error(result.error || "No se pudo completar la operación."), {
+				status: response.status
+			});
+		}
+	}
+	return result;
 }
 
 async function unlockLocalComment(requestId, credentials) {
@@ -621,7 +854,7 @@ if (commentForm) {
 			status.classList.remove("comment-status--error");
 			commentListRevision += 1;
 			const list = document.querySelector("#comment-list");
-			if (!list.querySelector(".comment")) {
+			if (!list.querySelector(".comment, .comment-deleted")) {
 				list.replaceChildren();
 			}
 			list.prepend(createCommentElement(comment));
