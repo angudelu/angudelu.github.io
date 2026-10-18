@@ -75,16 +75,28 @@ class SiteHandler(SimpleHTTPRequestHandler):
                                             "deleted": True,
                                         })
                                     elif saved_comment.get("private"):
+                                        edited_at = saved_comment.get("editedAt") or (
+                                            saved_comment.get("edited")
+                                            if isinstance(saved_comment.get("edited"), str)
+                                            else ""
+                                        )
                                         comments.append({
                                             "date": saved_comment["date"],
                                             "name": saved_comment["name"],
                                             "recipient": saved_comment.get("recipient", ""),
                                             "requestId": saved_comment["requestId"],
                                             "private": True,
-                                            "edited": bool(saved_comment.get("edited")),
+                                            "edited": bool(edited_at),
+                                            "editedAt": edited_at,
                                         })
                                     else:
-                                        saved_comment["edited"] = bool(saved_comment.get("edited"))
+                                        edited_at = saved_comment.get("editedAt") or (
+                                            saved_comment.get("edited")
+                                            if isinstance(saved_comment.get("edited"), str)
+                                            else ""
+                                        )
+                                        saved_comment["edited"] = bool(edited_at)
+                                        saved_comment["editedAt"] = edited_at
                                         comments.append(saved_comment)
                                 except json.JSONDecodeError as error:
                                     raise ValueError(
@@ -449,6 +461,7 @@ class SiteHandler(SimpleHTTPRequestHandler):
                     "private": bool(record.get("private")),
                     "recipient": record.get("recipient", "") if record.get("private") else "",
                     "edited": bool(record.get("edited")),
+                    "editedAt": record.get("edited", ""),
                     "deleted": bool(record.get("deleted")),
                 }
                 if not record.get("private") and not record.get("deleted"):

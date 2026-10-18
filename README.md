@@ -25,7 +25,7 @@ El comentario aparecerá oculto, con el encabezado `remitente@destinatario`, par
 
 ## Editar o eliminar un comentario
 
-Pulsa el icono de tres puntos del comentario y elige **Editar** o **Eliminar**. Ambas acciones requieren las credenciales del autor (`usuario:contraseña`); no se permite modificar comentarios de otra cuenta. Al editar, el texto actualizado conserva la fecha original y aparece marcado como **(editado)**. Los comentarios eliminados se sustituyen por el texto *comentario eliminado* en su posición.
+Pulsa el icono de tres puntos del comentario y elige **Editar** o **Eliminar**. Ambas acciones requieren las credenciales del autor (`usuario:contraseña`); usa **Mostrar/Ocultar** para comprobar lo que has escrito. No se permite modificar comentarios de otra cuenta. Al editar, el texto actualizado conserva la fecha original y aparece marcado como **(editado)**. Los comentarios eliminados se sustituyen por el texto *comentario eliminado* en su posición.
 
 Si el comentario es privado, primero carga su texto desde el formulario de edición con las credenciales del autor. El comentario seguirá oculto para los demás después de guardarlo.
 

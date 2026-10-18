@@ -76,10 +76,11 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .comment { position: relative; min-width: 0; max-width: 100%; padding: 14px 14px 48px; border: 1px solid #ddd; border-radius: 4px; background: #fff; }
 .comment--private { background: #111; color: #fff; }
 .comment--private .comment-edited, .comment--private .comment-management-status { color: #ddd; }
-.comment--private .comment-menu-toggle { color: #fff; }
-.comment--private .comment-menu-toggle:hover, .comment--private .comment-menu-toggle:focus-visible { background: #333; }
+.comment--private .comment-menu-toggle { border-color: #777; background: #333; color: #fff; }
+.comment--private .comment-menu-toggle:hover, .comment--private .comment-menu-toggle:focus-visible { background: #484848; }
 .comment--confirm-delete { border-color: #e99; background: #fff0f0; color: #292129; }
-.comment--confirm-delete .comment-management-status, .comment--confirm-delete .comment-menu-toggle { color: #555; }
+.comment--confirm-delete .comment-management-status { color: #555; }
+.comment--confirm-delete .comment-menu-toggle { border-color: #bbb; background: #fff; color: #333; }
 .comment--confirm-delete .comment-menu-toggle:hover, .comment--confirm-delete .comment-menu-toggle:focus-visible { background: #f4dada; }
 .private-comment-cover { margin-top: 12px; padding: 16px; background: #000; color: #fff; }
 .private-comment-cover > p { margin: 0 0 12px; }
@@ -95,8 +96,9 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .comment-edited { color: #666; font-size: 12px; font-style: italic; }
 .comment-text { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .comment-deleted { min-width: 0; margin: 0; color: #666; font-style: italic; overflow-wrap: anywhere; }
-.comment-controls { position: absolute; right: 8px; bottom: 8px; display: flex; justify-content: flex-end; }
-.comment-menu-toggle { width: 32px; height: 30px; padding: 0 0 8px; border: 0; border-radius: 4px; background: transparent; color: #555; font-size: 24px; line-height: 1; cursor: pointer; }
+.comment-controls { position: absolute; z-index: 2; right: 8px; bottom: 8px; display: flex; width: 40px; height: 32px; justify-content: flex-end; }
+.comment-menu-toggle { display: grid; width: 40px; height: 32px; place-items: center; padding: 0; border: 1px solid #bbb; border-radius: 5px; background: #fff; color: #333; cursor: pointer; }
+.comment-menu-toggle svg { display: block; width: 22px; height: 8px; fill: currentColor; }
 .comment-menu-toggle:hover, .comment-menu-toggle:focus-visible { background: #eee; }
 .comment-menu { position: absolute; right: 0; bottom: calc(100% + 4px); z-index: 1; display: grid; min-width: 120px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; background: #fff; box-shadow: 0 2px 8px #0002; }
 .comment-menu[hidden], .comment-management[hidden] { display: none; }
@@ -105,6 +107,9 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .comment-management { min-width: 0; margin-top: 12px; }
 .comment-manage-form { display: grid; min-width: 0; gap: 8px; }
 .comment-manage-form input, .comment-manage-form textarea { width: 100%; min-width: 0; padding: 10px; border: 1px solid #aaa; border-radius: 4px; font: inherit; }
+.comment-credentials-field { display: flex; min-width: 0; gap: 8px; }
+.comment-manage-form .comment-credentials-field input { flex: 1 1 auto; width: 0; }
+.comment-credentials-toggle { flex: 0 0 auto; padding: 8px 12px; border: 1px solid #aaa; border-radius: 4px; background: #f4f4f4; color: #292129; font: inherit; cursor: pointer; }
 .comment-manage-form textarea { resize: vertical; }
 .comment-management-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .comment-management-buttons button, .comment-manage-form > button { max-width: 100%; padding: 9px 12px; border: 0; border-radius: 4px; background: #1673ff; color: #fff; font: inherit; cursor: pointer; overflow-wrap: anywhere; }
@@ -113,7 +118,7 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .comment-manage-form .comment-delete-confirm { background: #a40000; }
 .comment-management-status { display: block; min-width: 0; color: #555; overflow-wrap: anywhere; }
 .comment-management-status.comment-status--error { color: #c00; }
-.comment-transport { display: none; }
+.comment-transport { position: fixed; left: -10000px; width: 1px; height: 1px; border: 0; visibility: hidden; }
 @media (max-width: 700px) {
 	.page { padding: 22px 16px; border-width: 8px; }
 	.grid { grid-template-columns: 1fr; }

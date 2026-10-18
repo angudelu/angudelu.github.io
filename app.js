@@ -290,7 +290,7 @@ function createCommentElement(comment) {
 	const menuToggle = document.createElement("button");
 	menuToggle.className = "comment-menu-toggle";
 	menuToggle.type = "button";
-	menuToggle.textContent = "⋯";
+	menuToggle.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 8"><circle cx="3" cy="4" r="2.5"></circle><circle cx="12" cy="4" r="2.5"></circle><circle cx="21" cy="4" r="2.5"></circle></svg>';
 	menuToggle.setAttribute("aria-label", "opciones del comentario");
 	menuToggle.setAttribute("aria-expanded", "false");
 	const menu = document.createElement("div");
@@ -324,13 +324,31 @@ function createCommentElement(comment) {
 	}
 
 	function createCredentialsField() {
+		const field = document.createElement("div");
+		field.className = "comment-credentials-field";
 		const credentials = document.createElement("input");
 		credentials.type = "password";
 		credentials.name = "credentials";
 		credentials.autocomplete = "current-password";
 		credentials.placeholder = "usuario:contraseña";
 		credentials.required = true;
-		return credentials;
+		const toggle = document.createElement("button");
+		toggle.className = "comment-credentials-toggle";
+		toggle.type = "button";
+		toggle.textContent = "mostrar";
+		toggle.setAttribute("aria-label", "mostrar usuario y contraseña");
+		toggle.setAttribute("aria-pressed", "false");
+		toggle.addEventListener("click", () => {
+			const showingCredentials = credentials.type === "password";
+			credentials.type = showingCredentials ? "text" : "password";
+			toggle.textContent = showingCredentials ? "ocultar" : "mostrar";
+			toggle.setAttribute("aria-label", showingCredentials
+				? "ocultar usuario y contraseña"
+				: "mostrar usuario y contraseña");
+			toggle.setAttribute("aria-pressed", String(showingCredentials));
+		});
+		field.append(credentials, toggle);
+		return { field, input: credentials };
 	}
 
 	function createManagementStatus() {
@@ -375,9 +393,7 @@ function createCommentElement(comment) {
 				status.textContent = "comprobando credenciales...";
 				status.classList.remove("comment-status--error");
 				try {
-					const result = await submitCommentManagement(
-						"edit", comment, credentials.value, "", "load"
-					);
+					const result = await loadPrivateComment(comment.requestId, credentials.input.value);
 					editedText.value = result.comment;
 					editedText.required = true;
 					editedText.placeholder = "comentario";
@@ -395,7 +411,7 @@ function createCommentElement(comment) {
 			management.hidden = true;
 			article.classList.remove("comment--confirm-delete");
 		});
-		form.append(credentials, editedText, buttons, status);
+		form.append(credentials.field, editedText, buttons, status);
 		form.addEventListener("submit", async (event) => {
 			event.preventDefault();
 			save.disabled = true;
@@ -403,7 +419,7 @@ function createCommentElement(comment) {
 			status.classList.remove("comment-status--error");
 			try {
 				const result = await submitCommentManagement(
-					"edit", comment, credentials.value, editedText.value, "save"
+					"edit", comment, credentials.input.value, editedText.value, "save"
 				);
 				commentListRevision += 1;
 				article.replaceWith(createCommentElement(result.comment));
@@ -433,7 +449,7 @@ function createCommentElement(comment) {
 			management.hidden = true;
 			article.classList.remove("comment--confirm-delete");
 		});
-		form.append(credentials, confirm, cancel, status);
+		form.append(credentials.field, confirm, cancel, status);
 		form.addEventListener("submit", async (event) => {
 			event.preventDefault();
 			confirm.disabled = true;
@@ -441,7 +457,7 @@ function createCommentElement(comment) {
 			status.classList.remove("comment-status--error");
 			try {
 				const result = await submitCommentManagement(
-					"delete", comment, credentials.value
+					"delete", comment, credentials.input.value
 				);
 				commentListRevision += 1;
 				article.replaceWith(createCommentElement(result.comment));
@@ -537,13 +553,24 @@ function submitAppsScriptRequest(fields, timeoutMs = 20000) {
 	const iframe = document.querySelector("#comment-transport");
 	const requestId = fields.requestId;
 	return new Promise((resolve, reject) => {
-		const timeout = window.setTimeout(() => finish(new Error("Apps Script no respondió. inténtalo de nuevo")), timeoutMs);
+		let settled = false;
+		let reconciliationTimer;
+		let reconciling = false;
+		const deadline = Date.now() + timeoutMs;
+		const timeout = window.setTimeout(() => finish(new Error(
+			"No se pudo confirmar la respuesta de Apps Script. Comprueba que hayas publicado la versión nueva de Code.gs."
+		)), timeoutMs);
 
 		function cleanup() {
 			window.clearTimeout(timeout);
+			window.clearTimeout(reconciliationTimer);
 			window.removeEventListener("message", handleMessage);
 		}
 		function finish(error, result) {
+			if (settled) {
+				return;
+			}
+			settled = true;
 			cleanup();
 			if (error) {
 				reject(error);
@@ -581,6 +608,41 @@ function submitAppsScriptRequest(fields, timeoutMs = 20000) {
 		document.body.append(form);
 		form.submit();
 		form.remove();
+		if (
+			["edit", "delete"].includes(fields.action) &&
+			fields.operation !== "load"
+		) {
+			reconciliationTimer = window.setTimeout(reconcileManagementRequest, 2500);
+		}
+
+		async function reconcileManagementRequest() {
+			if (reconciling || settled) {
+				return;
+			}
+			reconciling = true;
+			try {
+				const { comments } = await loadAppsScriptComments(5000);
+				const savedComment = comments.find((comment) =>
+					comment.requestId === fields.commentId &&
+					(fields.action === "delete"
+						? comment.deleted
+						: comment.edited &&
+							comment.editedAt !== fields.previousEditedAt &&
+							(comment.private || comment.comment === fields.comment))
+				);
+				if (savedComment) {
+					finish(null, { ok: true, status: 200, comment: savedComment });
+					return;
+				}
+			} catch (error) {
+				console.error("No se pudo comprobar el resultado de la operación", error);
+			} finally {
+				reconciling = false;
+			}
+			if (!settled && Date.now() + 1500 < deadline) {
+				reconciliationTimer = window.setTimeout(reconcileManagementRequest, 1500);
+			}
+		}
 	});
 }
 
@@ -599,14 +661,23 @@ function parseManagementCredentials(credentials) {
 
 async function submitCommentManagement(action, comment, credentials, text = "", operation = "") {
 	const { username, password } = parseManagementCredentials(credentials);
+	if (action === "edit" && operation === "load") {
+		return loadPrivateComment(comment.requestId, credentials);
+	}
 	const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 	let result;
 	if (window.COMMENTS_API_URL) {
+		const api = await loadAppsScriptComments();
+		if ((api.apiVersion || 0) < 2) {
+			throw new Error("La edición y el borrado no están habilitados en la implementación de Apps Script. Publica la versión nueva de Code.gs.");
+		}
+		const previousComment = api.comments.find((entry) => entry.requestId === comment.requestId);
 		result = await submitAppsScriptRequest({
 			action,
 			operation,
 			requestId,
 			commentId: comment.requestId,
+			previousEditedAt: previousComment?.editedAt || "",
 			username,
 			password,
 			credentialsProvided: "true",
@@ -633,6 +704,14 @@ async function submitCommentManagement(action, comment, credentials, text = "", 
 		}
 	}
 	return result;
+}
+
+async function loadPrivateComment(commentId, credentials) {
+	const { username, password } = parseManagementCredentials(credentials);
+	const text = window.COMMENTS_API_URL
+		? await unlockAppsScriptComment(commentId, `${username}:${password}`)
+		: await unlockLocalComment(commentId, `${username}:${password}`);
+	return { comment: text };
 }
 
 async function unlockLocalComment(requestId, credentials) {

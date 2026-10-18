@@ -7,7 +7,7 @@ const NEW_USERS_PROPERTY = "NEW_USERS_JSON";
 const MAX_COMMENT_LENGTH = 280;
 const MAX_USERNAME_LENGTH = 60;
 const MAX_CREDENTIALS_LENGTH = 160;
-const MAX_COMMENTS_PER_DAY = 5;
+const MAX_COMMENTS_PER_DAY = 10;
 const INVALID_RECIPIENT_MESSAGE = "destinatario no existente";
 
 function setup() {
@@ -146,7 +146,10 @@ function doGet(event) {
 
   try {
     const comments = readComments_();
-    const body = callback + "(" + JSON.stringify({ comments: comments }) + ");";
+    const body = callback + "(" + JSON.stringify({
+      apiVersion: 2,
+      comments: comments
+    }) + ");";
     return ContentService.createTextOutput(body)
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
   } catch (error) {
@@ -289,7 +292,7 @@ function doPost(event) {
         requestId: requestId,
         ok: false,
         status: 429,
-        error: "Has alcanzado el límite de 5 comentarios por día."
+        error: "Has alcanzado el límite de 10 comentarios por día."
       });
     }
 
@@ -337,6 +340,7 @@ function readComments_() {
         private: row[5] === true,
         recipient: row[5] === true ? String(row[4] || "") : "",
         edited: Boolean(row[6]),
+        editedAt: row[6] instanceof Date ? row[6].toISOString() : String(row[6] || ""),
         deleted: row[7] === true
       };
       if (!comment.private && !comment.deleted) {
@@ -518,6 +522,7 @@ function commentFromRow_(row) {
     private: row[5] === true,
     recipient: row[5] === true ? String(row[4] || "") : "",
     edited: Boolean(row[6]),
+    editedAt: row[6] instanceof Date ? row[6].toISOString() : String(row[6] || ""),
     deleted: row[7] === true
   };
   if (!comment.private && !comment.deleted) {
