@@ -35,17 +35,22 @@ Si no tienes una cuenta, contacta con la persona que administra la página para 
 
 ## Publicaciones del grid
 
-Los archivos `texto-magenta.txt`, `texto-amarillo.txt`, `texto-cian.txt` y `texto-negro.txt` aceptan una publicación por línea con este formato:
+Los archivos `texto-magenta.txt`, `texto-amarillo.txt`, `texto-cian.txt` y `texto-negro.txt` aceptan publicaciones con este formato:
 
 ```text
 AAAA-MM-DD HH:mm|texto|ruta-de-imagen|enlace-de-la-imagen
 ```
 
-La hora usa el formato de 24 horas y la zona horaria local de la persona que visita la página. Así puedes añadir varias publicaciones en un mismo día; en el grid se muestra la más reciente cuya fecha y hora ya hayan llegado. Los historiales muestran todas las publicaciones anteriores ordenadas de más reciente a más antigua. La imagen, el enlace y la hora son opcionales. Si omites la hora se considera `00:00`, por compatibilidad con líneas que solo contienen la fecha.
+La fecha y la hora van al principio de cada post. La hora usa el formato de 24 horas y la zona horaria local de la persona que visita la página. Así puedes añadir varias publicaciones en un mismo día; en el grid se muestra la más reciente cuya fecha y hora ya hayan llegado. Los historiales muestran todas las publicaciones anteriores ordenadas de más reciente a más antigua. La imagen, el enlace y la hora son opcionales. Si omites la hora se considera `00:00`, por compatibilidad con entradas que solo contienen la fecha.
+
+El texto puede ocupar varias líneas y admite formato sencillo: escribe `\n` para insertar un salto de línea o pon una parte entre guiones bajos para mostrarla en **negrita**. Se pueden combinar ambas cosas. Si añades imagen y enlace, sepáralos del texto con `|`; pon esos campos al final, cada uno separado con `|`.
 
 Ejemplo:
 
 ```text
 2026-10-18 09:30|Primer mensaje del día||
-2026-10-18 17:45|Segundo mensaje del día|ice.png|https://ejemplo.com/
+2026-10-18 17:45|
+_Segundo mensaje del día_
+Este texto aparece en una línea nueva.
+|ice.png|https://ejemplo.com/
 ```

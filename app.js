@@ -10,17 +10,14 @@ function getLocalDateTime() {
 
 function parsePosts(contents) {
 	const posts = [];
-	for (const line of contents.split(/\r?\n/)) {
-		if (line.trim().startsWith("#")) {
-			continue;
-		}
-
-		const [entryDate = "", text = "", image = "", link = ""] = line.split("|");
-		const match = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?$/.exec(entryDate.trim());
-		if (!match) {
-			continue;
-		}
-		const [, normalizedDate, hour = "00", minute = "00"] = match;
+	const entryPattern = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?\|/gm;
+	const entries = [...contents.matchAll(entryPattern)];
+	for (let index = 0; index < entries.length; index += 1) {
+		const entry = entries[index];
+		const [, normalizedDate, hour = "00", minute = "00"] = entry;
+		const contentStart = entry.index + entry[0].length;
+		const contentEnd = entries[index + 1]?.index ?? contents.length;
+		let content = contents.slice(contentStart, contentEnd).trim();
 		const [year, month, day] = normalizedDate.split("-").map(Number);
 		const hours = Number(hour);
 		const minutes = Number(minute);
@@ -35,14 +32,23 @@ function parsePosts(contents) {
 			continue;
 		}
 
+		let image = "";
+		let link = "";
+		const imageFields = /\|([^|\r\n]*)\|([^|\r\n]*)\s*$/.exec(content);
+		if (imageFields) {
+			content = content.slice(0, imageFields.index).trimEnd();
+			image = imageFields[1].trim();
+			link = imageFields[2].trim();
+		}
+		const text = content.replace(/\\n/g, "\n").trim();
 		if (text.trim() || image.trim()) {
 			posts.push({
 				date: normalizedDate,
 				time: `${hour}:${minute}`,
 				dateTime: `${normalizedDate}T${hour}:${minute}`,
-				text: text.trim(),
-				image: image.trim(),
-				link: link.trim()
+				text,
+				image,
+				link
 			});
 		}
 	}
@@ -67,6 +73,21 @@ function getSafeUrl(value) {
 	}
 }
 
+function appendFormattedPostText(element, text) {
+	const fragment = document.createDocumentFragment();
+	const boldPattern = /_([^_]+)_/gs;
+	let lastIndex = 0;
+	for (const match of text.matchAll(boldPattern)) {
+		fragment.append(document.createTextNode(text.slice(lastIndex, match.index)));
+		const bold = document.createElement("strong");
+		bold.textContent = match[1];
+		fragment.append(bold);
+		lastIndex = match.index + match[0].length;
+	}
+	fragment.append(document.createTextNode(text.slice(lastIndex)));
+	element.append(fragment);
+}
+
 function createPostElement(post) {
 	const container = document.createElement("article");
 	container.className = "history-post";
@@ -80,7 +101,7 @@ function createPostElement(post) {
 	if (post.text) {
 		const textElement = document.createElement("p");
 		textElement.className = "post-text";
-		textElement.textContent = post.text;
+		appendFormattedPostText(textElement, post.text);
 		container.append(textElement);
 	}
 
