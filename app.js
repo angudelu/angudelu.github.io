@@ -405,9 +405,20 @@ function createCommentElement(comment) {
 
 	const name = document.createElement("strong");
 	name.className = "comment-name";
-	name.textContent = comment.private && comment.recipient
+	const authorIconPath = getUsernameIconPath(comment.name);
+	if (authorIconPath) {
+		const avatar = document.createElement("img");
+		avatar.className = "comment-author-avatar";
+		avatar.src = authorIconPath;
+		avatar.alt = "";
+		avatar.addEventListener("error", () => avatar.remove(), { once: true });
+		name.append(avatar);
+	}
+	const authorName = document.createElement("span");
+	authorName.textContent = comment.private && comment.recipient
 		? `${comment.name}@${comment.recipient}`
 		: comment.name;
+	name.append(authorName);
 	header.append(name);
 
 	const date = document.createElement("time");
@@ -490,7 +501,8 @@ function createCommentElement(comment) {
 	const management = document.createElement("div");
 	management.className = "comment-management";
 	management.hidden = true;
-	article.append(controls, management);
+	header.append(controls);
+	article.append(management);
 
 	menuToggle.addEventListener("click", () => {
 		if (!activeCommentCredentials) {
