@@ -1,8 +1,15 @@
 2026-10-17 23:00|
-esto es un texto de prueba no importante\n y una imagen aleatoria de mi galería(si la pulsas te lleva a un vídeo cute)
+esto es un texto de prueba no importante
+y una imagen aleatoria de mi galería (si la pulsas te lleva a un vídeo cute)
 |ice.png|https://youtu.be/PJnn-wMPU9w
 
-2026-10-18 9:00|
+2026-10-18 09:00|
+_prueba_ prueba _prueba_
+está todo funcionando?
+prueba número dos
+|ice.png|https://youtu.be/PJnn-wMPU9w
+
+2026-10-18 11:00|
 _he añadido comentarios privados!!!_
 escribe "@destinatario" después de tu usuario y contraseña para publicar un comentario que sólo podréis ver tú y tu amigo (ni siquiera lo podré ver yo).
 por ejemplo para la imagen adjunta la formula sería "andreaqtzz:contraseña@angudelu"
