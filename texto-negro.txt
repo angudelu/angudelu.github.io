@@ -31,4 +31,4 @@ _editar, eliminar y responder_
 ahora salen unos insectos encima de los mensajes, son respuestas de otras personas!
 cada persona puede aportar un insecto, mientras no haya 5 o más, sólo pulsa el icono de los tres puntos que hay en cada mensaje y selecciona "responder"
 en ese mismo menú desplegable también verás la opción de editar o eliminar tus propios mensajes
-|iconoresp1.svg|https://youtu.be/6ZTTzcwVd94
+|img\18102026bee.png|https://youtu.be/6ZTTzcwVd94
