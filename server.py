@@ -78,55 +78,8 @@ class SiteHandler(SimpleHTTPRequestHandler):
             return
         if request_path == "/api/comments":
             try:
-                with comments_lock:
-                    comments = []
-                    if COMMENTS_FILE.exists():
-                        with COMMENTS_FILE.open("r", encoding="utf-8") as file:
-                            for line_number, line in enumerate(file, start=1):
-                                if not line.strip() or line.lstrip().startswith("#"):
-                                    continue
-                                try:
-                                    saved_comment = json.loads(line)
-                                    if saved_comment.get("deleted"):
-                                        comments.append({
-                                            "date": saved_comment["date"],
-                                            "requestId": saved_comment["requestId"],
-                                            "deleted": True,
-                                        })
-                                    elif saved_comment.get("private"):
-                                        edited_at = saved_comment.get("editedAt") or (
-                                            saved_comment.get("edited")
-                                            if isinstance(saved_comment.get("edited"), str)
-                                            else ""
-                                        )
-                                        comments.append({
-                                            "date": saved_comment["date"],
-                                            "name": saved_comment["name"],
-                                            "recipient": saved_comment.get("recipient", ""),
-                                            "requestId": saved_comment["requestId"],
-                                            "private": True,
-                                            "edited": bool(edited_at),
-                                            "editedAt": edited_at,
-                                        })
-                                    else:
-                                        edited_at = saved_comment.get("editedAt") or (
-                                            saved_comment.get("edited")
-                                            if isinstance(saved_comment.get("edited"), str)
-                                            else ""
-                                        )
-                                        replies = validate_comment_replies(
-                                            saved_comment.get("replies", [])
-                                        )
-                                        saved_comment["edited"] = bool(edited_at)
-                                        saved_comment["editedAt"] = edited_at
-                                        saved_comment["replies"] = replies
-                                        comments.append(saved_comment)
-                                except json.JSONDecodeError as error:
-                                    raise ValueError(
-                                        f"Invalid comment data on line {line_number}"
-                                    ) from error
-                self.send_json(HTTPStatus.OK, {"comments": list(reversed(comments))})
-            except (OSError, ValueError) as error:
+                self.send_json(HTTPStatus.OK, {"comments": self.read_comment_list()})
+            except (OSError, ValueError, KeyError) as error:
                 self.log_error("Could not read comments: %s", error)
                 self.send_json(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -134,6 +87,57 @@ class SiteHandler(SimpleHTTPRequestHandler):
                 )
             return
         super().do_GET()
+
+    def read_comment_list(self, viewer_username=None):
+        comments = []
+        with comments_lock:
+            if not COMMENTS_FILE.exists():
+                return comments
+            with COMMENTS_FILE.open("r", encoding="utf-8") as file:
+                for line_number, line in enumerate(file, start=1):
+                    if not line.strip() or line.lstrip().startswith("#"):
+                        continue
+                    try:
+                        saved_comment = json.loads(line)
+                    except json.JSONDecodeError as error:
+                        raise ValueError(
+                            f"Invalid comment data on line {line_number}"
+                        ) from error
+
+                    is_private = bool(saved_comment.get("private"))
+                    if is_private and (
+                        not viewer_username or
+                        viewer_username not in {
+                            saved_comment.get("name"),
+                            saved_comment.get("recipient"),
+                        }
+                    ):
+                        continue
+
+                    edited_at = saved_comment.get("editedAt") or (
+                        saved_comment.get("edited")
+                        if isinstance(saved_comment.get("edited"), str)
+                        else ""
+                    )
+                    comment = {
+                        "date": saved_comment["date"],
+                        "requestId": saved_comment["requestId"],
+                        "deleted": bool(saved_comment.get("deleted")),
+                        "private": is_private,
+                    }
+                    if is_private or not saved_comment.get("deleted"):
+                        comment["name"] = saved_comment["name"]
+                        comment["edited"] = bool(edited_at)
+                        comment["editedAt"] = edited_at
+                        if is_private:
+                            comment["recipient"] = saved_comment.get("recipient", "")
+                    if not saved_comment.get("deleted"):
+                        comment["comment"] = saved_comment["comment"]
+                        comment["replies"] = validate_comment_replies(
+                            saved_comment.get("replies", [])
+                        )
+                    comments.append(comment)
+        return list(reversed(comments))
 
     def load_users(self):
         with users_lock:
@@ -178,6 +182,7 @@ class SiteHandler(SimpleHTTPRequestHandler):
         if request_path not in {
             "/api/comments",
             "/api/comments/login",
+            "/api/comments/list",
             "/api/comments/unlock",
             "/api/comments/edit",
             "/api/comments/delete",
@@ -227,6 +232,45 @@ class SiteHandler(SimpleHTTPRequestHandler):
                 self.send_json(HTTPStatus.UNAUTHORIZED, {"error": authentication_error})
                 return
             self.send_json(HTTPStatus.OK, {"username": username})
+            return
+
+        if request_path == "/api/comments/list":
+            username = payload.get("username")
+            password = payload.get("password")
+            if not isinstance(username, str) or not isinstance(password, str):
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": MISSING_PASSWORD_MESSAGE})
+                return
+            if len(username) + len(password) + 1 > MAX_CREDENTIALS_LENGTH:
+                self.send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "El usuario y la contraseña superan el límite permitido."},
+                )
+                return
+            try:
+                verified_username, authentication_error = self.verify_credentials(
+                    f"{username}:{password}"
+                )
+            except (OSError, ValueError) as error:
+                self.log_error("Could not verify comment list credentials: %s", error)
+                self.send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"error": "No se pudieron cargar los comentarios."},
+                )
+                return
+            if authentication_error:
+                self.send_json(HTTPStatus.UNAUTHORIZED, {"error": authentication_error})
+                return
+            try:
+                self.send_json(
+                    HTTPStatus.OK,
+                    {"comments": self.read_comment_list(verified_username)},
+                )
+            except (OSError, ValueError, KeyError) as error:
+                self.log_error("Could not read authenticated comments: %s", error)
+                self.send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"error": "No se pudieron cargar los comentarios."},
+                )
             return
 
         if request_path == "/api/comments/unlock":
@@ -655,7 +699,7 @@ class SiteHandler(SimpleHTTPRequestHandler):
                     "editedAt": record.get("edited", ""),
                     "deleted": bool(record.get("deleted")),
                 }
-                if not record.get("private") and not record.get("deleted"):
+                if not record.get("deleted"):
                     public_comment["comment"] = record["comment"]
                     public_comment["replies"] = record.get("replies", [])
                 self.send_json(HTTPStatus.OK, {"comment": public_comment})

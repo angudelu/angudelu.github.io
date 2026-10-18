@@ -11,7 +11,7 @@ La caja de comentarios está debajo de la rejilla de colores. Para publicar nece
 
 Cada cuenta puede publicar como máximo **5 comentarios al día**.
 
-Después de iniciar sesión, la cuenta y sus credenciales permanecen solo en la memoria de la página hasta que se recargue. Se reutilizan para publicar, responder, editar y eliminar, y para desbloquear automáticamente los comentarios privados dirigidos a esa cuenta o enviados por ella. No se guardan en el almacenamiento del navegador. Si intentas usar esas opciones sin iniciar sesión, la página te lo indicará.
+Después de iniciar sesión, la sesión se guarda en el almacenamiento local del navegador para que siga activa al recargar. Esto guarda las credenciales en ese navegador; cierra sesión borrando los datos del sitio si compartes el dispositivo. La sesión se utiliza para publicar, responder, editar y eliminar, y para mostrar solo los comentarios privados dirigidos a esa cuenta o enviados por ella.
 
 También puedes pulsar **Iniciar sesión** junto al botón **Mostrar** para validar la cuenta sin publicar un comentario. Si todavía no tienes cuenta, usa el enlace a Instagram que aparece bajo el campo.
 
@@ -25,19 +25,19 @@ destinatario
 
 El destinatario debe ser una cuenta existente. Después escribe el comentario y publícalo como siempre. Si el destinatario no existe, aparecerá el mensaje **«destinatario no existente»**.
 
-El comentario aparecerá oculto, con el encabezado `remitente@destinatario`, para que se identifique quién lo envió y a quién va dirigido. Para verlo, el remitente o el destinatario debe iniciar sesión y pulsar **Mostrar comentario**. Otras cuentas no pueden desbloquearlo.
+El comentario solo aparecerá en la lista cuando la persona haya iniciado sesión como remitente o destinatario. El texto privado no se envía a otras cuentas.
 
 ## Editar o eliminar un comentario
 
-Pulsa el icono de tres puntos del comentario y elige **Editar** o **Eliminar**. Debes iniciar sesión primero y solo puedes modificar tus propios comentarios. Al editar, el texto actualizado conserva la fecha original y aparece marcado como **(editado)**. Los comentarios eliminados se sustituyen por el texto *comentario eliminado* en su posición.
+Pulsa el icono de tres puntos del comentario y elige **Editar** o **Eliminar**. Debes iniciar sesión primero y solo puedes modificar tus propios comentarios; en los comentarios de otras personas solo aparece **Responder**. Al editar, el texto actualizado conserva la fecha original y muestra cuándo se editó por última vez. Los comentarios eliminados se sustituyen por el texto *comentario eliminado* en su posición.
 
-Si el comentario es privado, inicia sesión como autor y carga su texto desde el formulario de edición. El comentario seguirá oculto para los demás después de guardarlo.
+Si el comentario es privado, solo el autor puede editarlo; seguirá sin aparecer a otras cuentas después de guardarlo.
 
 ## Responder a un comentario
 
-Pulsa los tres puntos y elige **Responder**. Debes iniciar sesión primero. Cada usuario puede dejar **una respuesta por comentario**; cada comentario admite hasta **5 respuestas** en total y cada respuesta hasta **50 caracteres**. No cuentan para el límite diario de comentarios. Se muestran como insectos en la parte superior derecha; al pasar el cursor o pulsarlos aparece el texto. Las respuestas a comentarios públicos son visibles para todos; las respuestas a comentarios privados solo pueden publicarlas y leerlas el remitente o el destinatario.
+Pulsa los tres puntos y elige **Responder** en tus comentarios, o **Responder** directamente en comentarios de otras personas. Debes iniciar sesión primero. Cada usuario puede dejar **una respuesta por comentario**; cada comentario admite hasta **5 respuestas** en total y cada respuesta hasta **50 caracteres**. El contador muestra los caracteres escritos. No cuentan para el límite diario de comentarios. Se muestran como un icono en la parte superior derecha; al pasar el cursor o pulsarlo aparece el texto y el autor. Si `icons/` contiene un SVG con el mismo nombre que el usuario, se usa como icono y avatar; si no, se muestra un insecto. Las respuestas a comentarios públicos son visibles para todos; las respuestas a comentarios privados solo pueden publicarlas y leerlas el remitente o el destinatario.
 
-Solo el formulario superior pide usuario y contraseña para iniciar sesión. La contraseña permanece solo en memoria hasta que se recargue la página.
+En la página principal se muestran solo los comentarios de hoy. Pulsa **Ver comentarios más antiguos**, debajo de la lista, para abrir el historial.
 
 ## Mensajes de error habituales
 

@@ -147,7 +147,7 @@ function doGet(event) {
   try {
     const comments = readComments_();
     const body = callback + "(" + JSON.stringify({
-      apiVersion: 4,
+      apiVersion: 5,
       comments: comments
     }) + ");";
     return ContentService.createTextOutput(body)
@@ -182,6 +182,9 @@ function doPost(event) {
   }
   if (parameters.action === "login") {
     return login_(parameters, requestId);
+  }
+  if (parameters.action === "list") {
+    return listComments_(parameters, requestId);
   }
   if (parameters.action === "edit" || parameters.action === "delete") {
     return manageComment_(parameters, requestId);
@@ -352,7 +355,45 @@ function login_(parameters, requestId) {
   }
 }
 
-function readComments_() {
+function listComments_(parameters, requestId) {
+  const username = String(parameters.username || "").trim();
+  const password = String(parameters.password || "");
+  if (username.length + password.length + 1 > MAX_CREDENTIALS_LENGTH) {
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 400,
+      error: "El usuario y la contraseña superan el límite permitido."
+    });
+  }
+  try {
+    const authentication = verifyUser_(username, password);
+    if (!authentication.valid) {
+      return postMessageResponse_({
+        requestId: requestId,
+        ok: false,
+        status: 401,
+        error: authentication.error
+      });
+    }
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: true,
+      status: 200,
+      comments: readComments_(username)
+    });
+  } catch (error) {
+    console.error(error);
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 500,
+      error: "No se pudieron cargar los comentarios."
+    });
+  }
+}
+
+function readComments_(viewerUsername) {
   const spreadsheetId = PropertiesService.getScriptProperties()
     .getProperty(COMMENTS_SPREADSHEET_PROPERTY);
   if (!spreadsheetId) {
@@ -369,7 +410,14 @@ function readComments_() {
   }
 
   return sheet.getRange(2, 1, lastRow - 1, 9).getValues()
-    .filter((row) => row[0] && row[1] && (row[2] || row[7] === true))
+    .filter((row) =>
+      row[0] &&
+      row[1] &&
+      (row[2] || row[7] === true) &&
+      (row[5] !== true ||
+        (viewerUsername &&
+          (String(row[1]) === viewerUsername || String(row[4] || "") === viewerUsername)))
+    )
     .reverse()
     .map((row) => {
       const comment = {
@@ -382,7 +430,7 @@ function readComments_() {
         editedAt: row[6] instanceof Date ? row[6].toISOString() : String(row[6] || ""),
         deleted: row[7] === true
       };
-      if (!comment.private && !comment.deleted) {
+      if (!comment.deleted) {
         comment.comment = String(row[2]);
         comment.replies = parseCommentReplies_(row[8]);
       }
@@ -565,7 +613,7 @@ function commentFromRow_(row) {
     editedAt: row[6] instanceof Date ? row[6].toISOString() : String(row[6] || ""),
     deleted: row[7] === true
   };
-  if (!comment.private && !comment.deleted) {
+  if (!comment.deleted) {
     comment.comment = String(row[2]);
     comment.replies = parseCommentReplies_(row[8]);
   }

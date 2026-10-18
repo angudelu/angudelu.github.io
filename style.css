@@ -80,7 +80,7 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .comment-status--error { color: #c00; font-size: 12px; }
 .comment-count { justify-self: end; color: #666; font-size: 12px; }
 .comment-list { display: grid; min-width: 0; gap: 12px; margin-top: 18px; }
-.comment { position: relative; min-width: 0; max-width: 100%; padding: 40px 14px 48px; border: 1px solid #ddd; border-radius: 4px; background: #fff; }
+.comment { position: relative; min-width: 0; max-width: 100%; padding: 8px 14px 48px; border: 1px solid #ddd; border-radius: 4px; background: #fff; }
 .comment--private { background: #111; color: #fff; }
 .comment--private .comment-edited, .comment--private .comment-management-status { color: #ddd; }
 .comment--private .comment-menu-toggle { border-color: #777; background: #333; color: #fff; }
@@ -97,22 +97,27 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .private-comment-form button:disabled { cursor: wait; opacity: .65; }
 .private-comment-status { flex-basis: 100%; min-height: 1em; color: #ddd; }
 .private-comment-status.comment-status--error { color: #ff8c8c; }
-.comment-header { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; }
+.comment-header { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 8px 14px; padding-right: 112px; }
 .comment-name { overflow-wrap: anywhere; }
 .comment-date { color: #666; font-size: 12px; }
 .comment-edited { color: #666; font-size: 12px; font-style: italic; }
 .comment-text { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .comment-deleted { min-width: 0; margin: 0; color: #666; font-style: italic; overflow-wrap: anywhere; }
 .comment-controls { position: absolute; z-index: 2; right: 8px; bottom: 8px; display: flex; width: 40px; height: 32px; justify-content: flex-end; }
-.comment-replies { position: absolute; z-index: 1; top: 3px; right: 8px; display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 3px; max-width: calc(100% - 16px); }
-.comment-reply-pin { display: grid; min-width: 30px; min-height: 30px; place-items: center; padding: 0; border: 0; background: transparent; cursor: pointer; transform: rotate(var(--reply-angle, 0deg)); transform-origin: center; }
-.comment-reply-pin img { display: block; width: 28px; height: 28px; object-fit: contain; }
-.comment-reply-pin:hover, .comment-reply-pin:focus-visible { z-index: 2; }
-.comment-reply-text { max-width: min(180px, 45vw); padding: 5px 7px; border: 1px solid #ddd; border-radius: 5px; background: #fffef4; color: #292129; box-shadow: 0 2px 5px #0002; font-size: 11px; line-height: 1.25; overflow-wrap: anywhere; text-align: left; transform: rotate(calc(var(--reply-angle, 0deg) * -0.25)); }
+.comment-replies { position: absolute; z-index: 3; top: -5px; right: 8px; display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 3px; max-width: calc(100% - 16px); }
+.comment-reply-pin { position: relative; display: grid; min-width: 44px; min-height: 44px; place-items: center; padding: 0; border: 0; background: transparent; cursor: pointer; transform: rotate(var(--reply-angle, 0deg)); transform-origin: center; }
+.comment-reply-pin > img { display: block; width: 42px; height: 42px; object-fit: contain; }
+.comment-reply-pin:hover, .comment-reply-pin:focus-visible, .comment-reply-pin.is-open { z-index: 4; }
+.comment-reply-text { display: grid; max-width: min(210px, 55vw); gap: 3px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 5px; background: #fffef4; color: #292129; box-shadow: 0 2px 5px #0002; font-size: 11px; line-height: 1.25; overflow-wrap: anywhere; text-align: left; transform: rotate(calc(var(--reply-angle, 0deg) * -0.25)); }
+.comment-reply-author { display: flex; min-width: 0; align-items: center; gap: 4px; font-size: 10px; }
+.comment-reply-avatar { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
+.comment-reply-message { display: block; }
 .comment-reply-pin [hidden] { display: none; }
 .comment-menu-toggle { display: grid; width: 40px; height: 32px; place-items: center; padding: 0; border: 1px solid #bbb; border-radius: 5px; background: #fff; color: #333; cursor: pointer; }
 .comment-menu-toggle svg { display: block; width: 22px; height: 8px; fill: currentColor; }
 .comment-menu-toggle:hover, .comment-menu-toggle:focus-visible { background: #eee; }
+.comment-direct-reply { min-width: 76px; padding: 5px 8px; border: 1px solid #bbb; border-radius: 5px; background: #fff; color: #292129; font: inherit; cursor: pointer; }
+.comment-direct-reply:disabled { cursor: not-allowed; opacity: .55; }
 .comment-menu { position: absolute; right: 0; bottom: calc(100% + 4px); z-index: 1; display: grid; min-width: 120px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; background: #fff; box-shadow: 0 2px 8px #0002; }
 .comment-menu[hidden], .comment-management[hidden] { display: none; }
 .comment-menu button { padding: 8px 10px; border: 0; background: transparent; color: #292129; text-align: left; font: inherit; cursor: pointer; }
@@ -128,6 +133,7 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .comment-manage-form textarea { resize: vertical; }
 .comment-reply-form { display: grid; min-width: 0; gap: 8px; margin-top: 12px; }
 .comment-reply-form input { width: 100%; min-width: 0; padding: 10px; border: 1px solid #aaa; border-radius: 4px; font: inherit; }
+.comment-reply-form .comment-count { justify-self: end; margin-top: -6px; }
 .comment-reply-identity { margin: 0; color: #555; font-size: 12px; }
 .comment-reply-form .comment-management-buttons { margin: 0; }
 .comment-management-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -136,6 +142,8 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .comment-management-buttons .comment-cancel-button, .comment-manage-form .comment-cancel-button { background: #666; }
 .comment-manage-form .comment-delete-confirm { background: #a40000; }
 .comment-management-status { display: block; min-width: 0; color: #555; overflow-wrap: anywhere; }
+.older-comments-button { display: block; width: fit-content; max-width: 100%; margin: 14px auto 0; padding: 10px 16px; border-radius: 4px; background: #1673ff; color: #fff; text-align: center; text-decoration: none; overflow-wrap: anywhere; }
+.older-comments-button:hover, .older-comments-button:focus-visible { background: #0759d1; }
 .comment-management-status.comment-status--error { color: #c00; }
 .comment-transport { position: fixed; left: -10000px; width: 1px; height: 1px; border: 0; visibility: hidden; }
 @media (max-width: 700px) {
