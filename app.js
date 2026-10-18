@@ -378,6 +378,21 @@ async function submitAppsScriptComment(credentials, comment) {
 
 const commentForm = document.querySelector("#comment-form");
 if (commentForm) {
+	const passwordInput = document.querySelector("#comment-name");
+	const togglePassword = document.querySelector("#toggle-password");
+	togglePassword.addEventListener("click", () => {
+		const showingPassword = passwordInput.type === "password";
+		passwordInput.type = showingPassword ? "text" : "password";
+		togglePassword.textContent = showingPassword ? "Ocultar" : "Mostrar";
+		togglePassword.setAttribute("aria-pressed", String(showingPassword));
+	});
+
+	const commentInput = document.querySelector("#comment-text");
+	const commentCount = document.querySelector("#comment-count");
+	commentInput.addEventListener("input", () => {
+		commentCount.textContent = `${commentInput.value.length}/280`;
+	});
+
 	commentForm.addEventListener("submit", async (event) => {
 		event.preventDefault();
 		const formData = new FormData(commentForm);
@@ -420,6 +435,7 @@ if (commentForm) {
 			}
 			list.prepend(createCommentElement(comment));
 			commentForm.reset();
+			commentCount.textContent = "0/280";
 			status.textContent = "Comentario publicado.";
 		} catch (error) {
 			if (error.status === 401) {

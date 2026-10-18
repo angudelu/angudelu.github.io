@@ -4,9 +4,9 @@ const COMMENTS_USERS_PROPERTY = "COMMENTS_USERS";
 const COMMENTS_PEPPER_PROPERTY = "COMMENTS_PEPPER";
 const INITIAL_USERS_PROPERTY = "INITIAL_USERS_JSON";
 const NEW_USERS_PROPERTY = "NEW_USERS_JSON";
-const MAX_COMMENT_LENGTH = 1200;
+const MAX_COMMENT_LENGTH = 280;
 const MAX_USERNAME_LENGTH = 60;
-const MAX_COMMENTS_PER_MINUTE = 5;
+const MAX_COMMENTS_PER_DAY = 5;
 
 function setup() {
   const properties = PropertiesService.getScriptProperties();
@@ -205,15 +205,7 @@ function doPost(event) {
       requestId: requestId,
       ok: false,
       status: 400,
-      error: "El comentario admite hasta 1200 caracteres."
-    });
-  }
-  if (isRateLimited_(username)) {
-    return postMessageResponse_({
-      requestId: requestId,
-      ok: false,
-      status: 429,
-      error: "Has publicado demasiados comentarios. Inténtalo más tarde."
+      error: "El comentario admite hasta 280 caracteres."
     });
   }
 
@@ -236,15 +228,46 @@ function doPost(event) {
     };
     const lock = LockService.getScriptLock();
     lock.waitLock(10000);
+    let dailyLimitReached = false;
     try {
-      sheet.appendRow([
-        commentRecord.date,
-        commentRecord.name,
-        commentRecord.comment,
-        commentRecord.requestId
-      ]);
+      const timezone = Session.getScriptTimeZone();
+      const today = Utilities.formatDate(new Date(), timezone, "yyyy-MM-dd");
+      const lastRow = sheet.getLastRow();
+      let commentsToday = 0;
+      if (lastRow >= 2) {
+        commentsToday = sheet.getRange(2, 1, lastRow - 1, 3).getValues()
+          .filter((row) => {
+            if (!row[0] || String(row[1]) !== username) {
+              return false;
+            }
+            const savedDate = row[0] instanceof Date
+              ? Utilities.formatDate(row[0], timezone, "yyyy-MM-dd")
+              : String(row[0]).slice(0, 10);
+            return savedDate === today;
+          }).length;
+      }
+
+      if (commentsToday >= MAX_COMMENTS_PER_DAY) {
+        dailyLimitReached = true;
+      } else {
+        sheet.appendRow([
+          commentRecord.date,
+          commentRecord.name,
+          commentRecord.comment,
+          commentRecord.requestId
+        ]);
+      }
     } finally {
       lock.releaseLock();
+    }
+
+    if (dailyLimitReached) {
+      return postMessageResponse_({
+        requestId: requestId,
+        ok: false,
+        status: 429,
+        error: "Has alcanzado el límite de 5 comentarios por día."
+      });
     }
 
     return postMessageResponse_({
@@ -333,17 +356,6 @@ function constantTimeEquals_(first, second) {
     difference |= first.charCodeAt(index) ^ second.charCodeAt(index);
   }
   return difference === 0;
-}
-
-function isRateLimited_(username) {
-  const cache = CacheService.getScriptCache();
-  const key = "comment-rate-" + hashPassword_(username, "rate-limit", "key", "local");
-  const count = Number(cache.get(key) || "0");
-  if (count >= MAX_COMMENTS_PER_MINUTE) {
-    return true;
-  }
-  cache.put(key, String(count + 1), 60);
-  return false;
 }
 
 function postMessageResponse_(message) {

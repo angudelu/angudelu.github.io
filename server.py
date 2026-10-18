@@ -3,8 +3,6 @@ import hmac
 import json
 import os
 import threading
-import time
-from collections import deque
 from datetime import datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -17,14 +15,11 @@ COMMENTS_FILE = ROOT / "comentarios.txt"
 USERS_FILE = ROOT / "usuarios.txt"
 MAX_REQUEST_BYTES = 4096
 MAX_CREDENTIALS_LENGTH = 160
-MAX_COMMENT_LENGTH = 1200
+MAX_COMMENT_LENGTH = 280
 PASSWORD_HASH_ITERATIONS = 600_000
-RATE_LIMIT_WINDOW_SECONDS = 60
-RATE_LIMIT_MAX_POSTS = 5
 comments_lock = threading.Lock()
 users_lock = threading.Lock()
-rate_limit_lock = threading.Lock()
-recent_posts = {}
+MAX_COMMENTS_PER_DAY = 5
 INVALID_CREDENTIALS_MESSAGE = (
     "Tienes que escribirme a mí para conseguir un usuario y contraseña "
     "y así poder comentar."
@@ -105,18 +100,6 @@ class SiteHandler(SimpleHTTPRequestHandler):
         ).hex()
         return username if hmac.compare_digest(actual_hash, expected_hash) else None
 
-    def is_rate_limited(self):
-        now = time.monotonic()
-        client = self.client_address[0]
-        with rate_limit_lock:
-            timestamps = recent_posts.setdefault(client, deque())
-            while timestamps and now - timestamps[0] >= RATE_LIMIT_WINDOW_SECONDS:
-                timestamps.popleft()
-            if len(timestamps) >= RATE_LIMIT_MAX_POSTS:
-                return True
-            timestamps.append(now)
-            return False
-
     def do_POST(self):
         if urlsplit(self.path).path != "/api/comments":
             self.send_json(HTTPStatus.NOT_FOUND, {"error": "Ruta no encontrada."})
@@ -173,17 +156,10 @@ class SiteHandler(SimpleHTTPRequestHandler):
         if not comment_text:
             self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Escribe un comentario."})
             return
-        if len(comment_text) > MAX_COMMENT_LENGTH:
+        if len(comment_text.encode("utf-16-le")) // 2 > MAX_COMMENT_LENGTH:
             self.send_json(
                 HTTPStatus.BAD_REQUEST,
-                {"error": "El comentario admite hasta 1200 caracteres."},
-            )
-            return
-
-        if self.is_rate_limited():
-            self.send_json(
-                HTTPStatus.TOO_MANY_REQUESTS,
-                {"error": "Has publicado demasiados comentarios. Inténtalo más tarde."},
+                {"error": "El comentario admite hasta 280 caracteres."},
             )
             return
 
@@ -194,9 +170,26 @@ class SiteHandler(SimpleHTTPRequestHandler):
         }
         try:
             with comments_lock:
+                today = datetime.now().astimezone().date()
+                comments_today = 0
+                if COMMENTS_FILE.exists():
+                    with COMMENTS_FILE.open("r", encoding="utf-8") as file:
+                        for line in file:
+                            if not line.strip() or line.lstrip().startswith("#"):
+                                continue
+                            saved_comment = json.loads(line)
+                            saved_date = datetime.fromisoformat(saved_comment["date"]).date()
+                            if saved_comment["name"] == username and saved_date == today:
+                                comments_today += 1
+                if comments_today >= MAX_COMMENTS_PER_DAY:
+                    self.send_json(
+                        HTTPStatus.TOO_MANY_REQUESTS,
+                        {"error": "Has alcanzado el límite de 5 comentarios por día."},
+                    )
+                    return
                 with COMMENTS_FILE.open("a", encoding="utf-8") as file:
                     file.write(json.dumps(new_comment, ensure_ascii=False) + "\n")
-        except OSError as error:
+        except (OSError, KeyError, ValueError, json.JSONDecodeError) as error:
             self.log_error("Could not save comment: %s", error)
             self.send_json(
                 HTTPStatus.INTERNAL_SERVER_ERROR,

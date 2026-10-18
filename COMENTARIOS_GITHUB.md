@@ -28,6 +28,8 @@ Los comentarios se guardan en la hoja creada por `setup`; la hoja no necesita ha
 
 Si el nombre ya existe, `addUsers` cancela la operación completa y conserva `NEW_USERS_JSON` para que puedas corregirlo. Los nombres de usuario no pueden contener `:`; las contraseñas pueden contenerlo.
 
+El servidor limita cada cuenta a **5 comentarios por día**, según la zona horaria configurada en el proyecto de Apps Script, y rechaza los comentarios que superen **280 caracteres**. Estos límites se comprueban en el servidor, no solo en el formulario. Tras modificar `apps-script/Code.gs`, publica una nueva versión de la aplicación web de Apps Script para aplicar también allí los límites.
+
 ## 2. Conectar GitHub Pages
 
 En `comments-config.js`, sustituye la cadena vacía por la URL `/exec` copiada:

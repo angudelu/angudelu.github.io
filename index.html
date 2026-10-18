@@ -10,7 +10,9 @@
 <body>
 	<main class="page">
 		<h1>hola familia</h1>
-		<iframe class="video" width="560" height="315" src="https://www.youtube.com/embed/AeJTnaK0WiA?autoplay=1&mute=1&playsinline=1" title="YouTube video player" frameborder="0" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+		<div class="video-frame">
+			<iframe class="video" width="560" height="315" src="https://www.youtube.com/embed/AeJTnaK0WiA?autoplay=1&mute=1&playsinline=1" title="YouTube video player" frameborder="0" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+		</div>
 		<div class="grid">
 			<section class="section magenta"><h2><a href="historial-magenta.html">magenta</a></h2><div class="grid-text" data-text-file="texto-magenta.txt">Cargando texto...</div></section>
 			<section class="section yellow"><h2><a href="historial-amarillo.html">amarillo</a></h2><div class="grid-text" data-text-file="texto-amarillo.txt">Cargando texto...</div></section>
@@ -21,9 +23,13 @@
 			<h2 id="comments-title">Comentarios</h2>
 			<form id="comment-form">
 				<label for="comment-name">Usuario:contraseña</label>
-				<input id="comment-name" name="name" type="password" maxlength="160" autocomplete="current-password" placeholder="usuario:contraseña" required>
+				<div class="password-field">
+					<input id="comment-name" name="name" type="password" maxlength="160" autocomplete="current-password" placeholder="usuario:contraseña" required>
+					<button id="toggle-password" class="toggle-password" type="button" aria-controls="comment-name" aria-pressed="false">Mostrar</button>
+				</div>
 				<label for="comment-text">Comentario</label>
-				<textarea id="comment-text" name="comment" maxlength="1200" rows="4" required></textarea>
+				<textarea id="comment-text" name="comment" maxlength="280" rows="4" required></textarea>
+				<small class="comment-count" id="comment-count" aria-live="polite">0/280</small>
 				<button type="submit">Publicar comentario</button>
 				<p class="comment-status" id="comment-status" role="status" aria-live="polite"></p>
 			</form>
@@ -32,6 +38,6 @@
 		</section>
 	</main>
 	<script src="comments-config.js"></script>
-	<script src="app.js?v=comments-confirmation-2" defer></script>
+	<script src="app.js?v=comments-limits-4" defer></script>
 </body>
 </html>
