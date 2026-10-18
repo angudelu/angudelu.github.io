@@ -1,3 +1,10 @@
-# Formato: AAAA-MM-DD|texto|ruta-de-imagen|enlace-de-la-imagen (imagen y enlace opcionales)
-2026-10-17|esto es un texto de prueba no importante\n y una imagen aleatoria de mi galería(si la pulsas te lleva a un vídeo cute)|ice.png|https://youtu.be/PJnn-wMPU9w
+# Formato: AAAA-MM-DD HH:mm|texto|ruta-de-imagen|enlace-de-la-imagen (hora, imagen y enlace opcionales; sin hora se usa 00:00)
+2026-10-17 23:00|
+esto es un texto de prueba no importante\n y una imagen aleatoria de mi galería(si la pulsas te lleva a un vídeo cute)
+|ice.png|https://youtu.be/PJnn-wMPU9w
 
+2026-18-10 23:00|
+he añadido comentarios privados!!!
+escribe "@destinatario" después de tu usuario y contraseña para publicar un comentario que sólo podréis ver tú y tu amigo (ni siquiera lo podré ver yo).
+por ejemplo para la imagen adjunta la formula sería "andreaqtzz:contraseña@angudelu"
+|img\img181020261119.png|

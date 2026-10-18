@@ -32,3 +32,20 @@ El comentario aparecerá oculto, con el encabezado `remitente@destinatario`, par
 - **El comentario admite hasta 280 caracteres**: acorta el texto hasta el máximo indicado por el contador.
 
 Si no tienes una cuenta, contacta con la persona que administra la página para solicitar acceso.
+
+## Publicaciones del grid
+
+Los archivos `texto-magenta.txt`, `texto-amarillo.txt`, `texto-cian.txt` y `texto-negro.txt` aceptan una publicación por línea con este formato:
+
+```text
+AAAA-MM-DD HH:mm|texto|ruta-de-imagen|enlace-de-la-imagen
+```
+
+La hora usa el formato de 24 horas y la zona horaria local de la persona que visita la página. Así puedes añadir varias publicaciones en un mismo día; en el grid se muestra la más reciente cuya fecha y hora ya hayan llegado. Los historiales muestran todas las publicaciones anteriores ordenadas de más reciente a más antigua. La imagen, el enlace y la hora son opcionales. Si omites la hora se considera `00:00`, por compatibilidad con líneas que solo contienen la fecha.
+
+Ejemplo:
+
+```text
+2026-10-18 09:30|Primer mensaje del día||
+2026-10-18 17:45|Segundo mensaje del día|ice.png|https://ejemplo.com/
+```

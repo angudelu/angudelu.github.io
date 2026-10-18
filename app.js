@@ -1,9 +1,11 @@
-function getLocalDate() {
-	const today = new Date();
-	const year = today.getFullYear();
-	const month = String(today.getMonth() + 1).padStart(2, "0");
-	const day = String(today.getDate()).padStart(2, "0");
-	return `${year}-${month}-${day}`;
+function getLocalDateTime() {
+	const now = new Date();
+	const year = now.getFullYear();
+	const month = String(now.getMonth() + 1).padStart(2, "0");
+	const day = String(now.getDate()).padStart(2, "0");
+	const hours = String(now.getHours()).padStart(2, "0");
+	const minutes = String(now.getMinutes()).padStart(2, "0");
+	return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 function parsePosts(contents) {
@@ -14,16 +16,21 @@ function parsePosts(contents) {
 		}
 
 		const [entryDate = "", text = "", image = "", link = ""] = line.split("|");
-		const normalizedDate = entryDate.trim();
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+		const match = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?$/.exec(entryDate.trim());
+		if (!match) {
 			continue;
 		}
+		const [, normalizedDate, hour = "00", minute = "00"] = match;
 		const [year, month, day] = normalizedDate.split("-").map(Number);
+		const hours = Number(hour);
+		const minutes = Number(minute);
 		const parsedDate = new Date(Date.UTC(year, month - 1, day));
 		if (
 			parsedDate.getUTCFullYear() !== year ||
 			parsedDate.getUTCMonth() !== month - 1 ||
-			parsedDate.getUTCDate() !== day
+			parsedDate.getUTCDate() !== day ||
+			hours > 23 ||
+			minutes > 59
 		) {
 			continue;
 		}
@@ -31,17 +38,19 @@ function parsePosts(contents) {
 		if (text.trim() || image.trim()) {
 			posts.push({
 				date: normalizedDate,
+				time: `${hour}:${minute}`,
+				dateTime: `${normalizedDate}T${hour}:${minute}`,
 				text: text.trim(),
 				image: image.trim(),
 				link: link.trim()
 			});
 		}
 	}
-	return posts.sort((first, second) => second.date.localeCompare(first.date));
+	return posts.sort((first, second) => second.dateTime.localeCompare(first.dateTime));
 }
 
-function getPostForDate(posts, date) {
-	return posts.find((post) => post.date <= date) ?? null;
+function getPostForDate(posts, dateTime) {
+	return posts.find((post) => post.dateTime <= dateTime) ?? null;
 }
 
 function getSafeUrl(value) {
@@ -64,8 +73,8 @@ function createPostElement(post) {
 
 	const dateElement = document.createElement("time");
 	dateElement.className = "post-date";
-	dateElement.dateTime = post.date;
-	dateElement.textContent = post.date;
+	dateElement.dateTime = post.dateTime;
+	dateElement.textContent = `${post.date} ${post.time}`;
 	container.append(dateElement);
 
 	if (post.text) {
@@ -102,7 +111,7 @@ function createPostElement(post) {
 async function fetchPosts(file) {
 	const response = await fetch(file);
 	if (!response.ok) {
-		throw new Error(`No se pudo cargar ${file} (${response.status})`);
+		throw new Error(`no se va poder cargar ${file} (${response.status})`);
 	}
 	return parsePosts(await response.text());
 }
@@ -113,32 +122,56 @@ async function loadGridText(element, date) {
 		const posts = await fetchPosts(file);
 		const post = getPostForDate(posts, date);
 		if (!post) {
-			element.textContent = `No hay publicaciones anteriores o programadas para el ${date}.`;
+			element.textContent = `no hay publicaciones anteriores o programadas para el ${date}`;
 			return;
 		}
 		element.replaceChildren(createPostElement(post));
 	} catch (error) {
-		element.textContent = `No se pudo cargar ${file}. Comprueba que el archivo exista y que la página se sirva desde un servidor web.`;
+		element.textContent = `no se va poder cargar ${file}. comprueba que el arxivo exista y que la página se sirva desde un servidor web`;
 		console.error(error);
 	}
 }
 
-const today = getLocalDate();
+const now = getLocalDateTime();
 document.querySelectorAll(".grid-text").forEach((element) => {
-	loadGridText(element, today);
+	loadGridText(element, now);
 });
+
+const socialMenu = document.querySelector("#social-menu");
+const socialMenuToggle = document.querySelector("#social-menu-toggle");
+if (socialMenu && socialMenuToggle) {
+	socialMenuToggle.addEventListener("click", () => {
+		const isOpen = socialMenu.classList.toggle("is-open");
+		socialMenuToggle.setAttribute("aria-expanded", String(isOpen));
+	});
+
+	document.addEventListener("click", (event) => {
+		if (!socialMenu.contains(event.target)) {
+			socialMenu.classList.remove("is-open");
+			socialMenuToggle.setAttribute("aria-expanded", "false");
+		}
+	});
+
+	socialMenu.addEventListener("keydown", (event) => {
+		if (event.key === "Escape") {
+			socialMenu.classList.remove("is-open");
+			socialMenuToggle.setAttribute("aria-expanded", "false");
+			socialMenuToggle.focus();
+		}
+	});
+}
 
 document.querySelectorAll("[data-history-file]").forEach(async (element) => {
 	const file = element.dataset.historyFile;
 	try {
-		const posts = (await fetchPosts(file)).filter((post) => post.date <= today);
+		const posts = (await fetchPosts(file)).filter((post) => post.dateTime <= now);
 		if (posts.length === 0) {
-			element.textContent = "Todavía no hay publicaciones en este historial.";
+			element.textContent = "encara no hay publicaciones en este historial";
 			return;
 		}
 		element.replaceChildren(...posts.map(createPostElement));
 	} catch (error) {
-		element.textContent = `No se pudo cargar ${file}. Comprueba que el archivo exista y que la página se sirva desde un servidor web.`;
+		element.textContent = `no se va poder cargar ${file}. comprueba que el arxivo exista y que la página se sirva desde un servidor web`;
 		console.error(error);
 	}
 });
@@ -174,7 +207,7 @@ function createCommentElement(comment) {
 		cover.setAttribute("aria-label", "Comentario privado");
 
 		const prompt = document.createElement("p");
-		prompt.textContent = "Comentario privado. Introduce usuario:contraseña del remitente o destinatario para mostrarlo.";
+		prompt.textContent = "comentario privado. introdueix usuario:contraseña del remitente o destinatario para mostrarlo";
 		const form = document.createElement("form");
 		form.className = "private-comment-form";
 		const credentials = document.createElement("input");
@@ -185,7 +218,7 @@ function createCommentElement(comment) {
 		credentials.required = true;
 		const unlock = document.createElement("button");
 		unlock.type = "submit";
-		unlock.textContent = "Mostrar comentario";
+		unlock.textContent = "mostrar comentario";
 		const status = document.createElement("small");
 		status.className = "private-comment-status";
 		status.setAttribute("role", "status");
@@ -193,7 +226,7 @@ function createCommentElement(comment) {
 		form.addEventListener("submit", async (event) => {
 			event.preventDefault();
 			unlock.disabled = true;
-			status.textContent = "Comprobando...";
+			status.textContent = "comprovando...";
 			status.classList.remove("comment-status--error");
 			try {
 				const text = window.COMMENTS_API_URL
@@ -204,7 +237,7 @@ function createCommentElement(comment) {
 				paragraph.textContent = text;
 				cover.replaceWith(paragraph);
 			} catch (error) {
-				status.textContent = error.message || "No se pudo mostrar el comentario.";
+				status.textContent = error.message || "no se va poder mostrar el comentario";
 				status.classList.add("comment-status--error");
 				unlock.disabled = false;
 			}
@@ -240,7 +273,7 @@ async function loadComments() {
 			appsScriptCommentsSnapshot = result.comments;
 		}
 		if (result.comments.length === 0) {
-			list.textContent = "Todavía no hay comentarios.";
+			list.textContent = "encara no hay comentarios";
 			return;
 		}
 		list.replaceChildren(...result.comments.map(createCommentElement));
@@ -249,8 +282,8 @@ async function loadComments() {
 			return;
 		}
 		list.textContent = window.COMMENTS_API_URL
-			? "No se pudieron cargar los comentarios. Comprueba la URL y el despliegue de Apps Script."
-			: "No se pudieron cargar los comentarios. En GitHub Pages configura Apps Script en comments-config.js.";
+			? "no se van poder cargar los comentarios. Comprueba la URL y el despliegue de Apps Script"
+			: "no se van poder cargar los comentarios. En GitHub Pages configura Apps Script en comments-config.js";
 		console.error(error);
 	}
 }
@@ -259,7 +292,7 @@ async function loadLocalComments() {
 	const response = await fetch("/api/comments");
 	const result = await response.json();
 	if (!response.ok) {
-		throw new Error(result.error || "No se pudieron cargar los comentarios.");
+		throw new Error(result.error || "no se van poder cargar los comentarios");
 	}
 	return result;
 }
@@ -270,7 +303,7 @@ function loadAppsScriptComments(timeoutMs = 15000) {
 		const script = document.createElement("script");
 		const timeout = window.setTimeout(() => {
 			cleanup();
-			reject(new Error("Tiempo de espera agotado al consultar Apps Script."));
+			reject(new Error("tiempo de espera agotado al consultar Apps Script"));
 		}, timeoutMs);
 
 		function cleanup() {
@@ -290,7 +323,7 @@ function loadAppsScriptComments(timeoutMs = 15000) {
 		};
 		script.onerror = () => {
 			cleanup();
-			reject(new Error("No se pudo conectar con Apps Script."));
+			reject(new Error("no se va poder conectar con Apps Script"));
 		};
 		script.src = `${window.COMMENTS_API_URL}?callback=${encodeURIComponent(callbackName)}&t=${Date.now()}`;
 		document.head.append(script);
@@ -301,7 +334,7 @@ function submitAppsScriptRequest(fields, timeoutMs = 20000) {
 	const iframe = document.querySelector("#comment-transport");
 	const requestId = fields.requestId;
 	return new Promise((resolve, reject) => {
-		const timeout = window.setTimeout(() => finish(new Error("Apps Script no respondió. Inténtalo de nuevo.")), timeoutMs);
+		const timeout = window.setTimeout(() => finish(new Error("Apps Script no respondió. inténtalo de nuevo")), timeoutMs);
 
 		function cleanup() {
 			window.clearTimeout(timeout);
@@ -356,7 +389,7 @@ async function unlockLocalComment(requestId, credentials) {
 	});
 	const result = await response.json();
 	if (!response.ok) {
-		throw Object.assign(new Error(result.error || "No se pudo mostrar el comentario."), {
+		throw Object.assign(new Error(result.error || "no se pudo mostrar el comentario"), {
 			status: response.status
 		});
 	}
@@ -395,7 +428,7 @@ async function submitAppsScriptComment(credentials, comment) {
 		let fallbackAttempts = 0;
 		let checkingComments = false;
 		const timeout = window.setTimeout(() => {
-			finishWithError(new Error("No se pudo confirmar el envío. Comprueba la conexión e inténtalo otra vez."));
+			finishWithError(new Error("no se pudo confirmar el envío. comprueba la conexión a la xarxa e inténtalo otra vez"));
 		}, 20000);
 
 		function cleanup() {
@@ -463,7 +496,7 @@ async function submitAppsScriptComment(credentials, comment) {
 					return;
 				}
 			} catch (error) {
-				console.error("No se pudo verificar todavía el comentario guardado.", error);
+				console.error("no se pudo verificar todavía el comentario guardado", error);
 			} finally {
 				checkingComments = false;
 			}
@@ -557,7 +590,7 @@ if (commentForm) {
 				});
 				const result = await response.json();
 				if (!response.ok) {
-					throw Object.assign(new Error(result.error || "No se pudo guardar el comentario."), {
+					throw Object.assign(new Error(result.error || "no se pudo guardar el comentario"), {
 						status: response.status
 					});
 				}
@@ -573,14 +606,14 @@ if (commentForm) {
 			list.prepend(createCommentElement(comment));
 			commentForm.reset();
 			commentCount.textContent = "0/280";
-			status.textContent = "Comentario publicado.";
+			status.textContent = "comentario publicado";
 		} catch (error) {
 			if (error.status === 401) {
 				status.classList.add("comment-status--error");
-				status.textContent = error.message || "Usuario inexistente. Tienes que contactar con Andrés para conseguir un usuario y contraseña y así poder comentar.";
+				status.textContent = error.message || "usuario inexistente. tienes que contactar con Andrés para conseguir un usuario y contraseña y así poder comentar";
 			} else {
 				status.classList.add("comment-status--error");
-				status.textContent = error.message || "No se pudo guardar el comentario.";
+				status.textContent = error.message || "no se pudo guardar el comentario... lo siento wei. inténtalo otra vez!!!";
 			}
 			console.error(error);
 		} finally {

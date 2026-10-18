@@ -13,31 +13,41 @@
 		<div class="video-frame">
 			<iframe class="video" width="560" height="315" src="https://www.youtube.com/embed/AeJTnaK0WiA?autoplay=1&mute=1&playsinline=1" title="YouTube video player" frameborder="0" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 		</div>
+		<div class="social-menu" id="social-menu">
+			<button class="social-menu-toggle" id="social-menu-toggle" type="button" aria-expanded="false" aria-controls="social-menu-links">
+				angudelu
+			</button>
+			<nav class="social-menu-links" id="social-menu-links" aria-label="Redes sociales">
+				<a class="social-link social-link--instagram" href="https://www.instagram.com/andy.aut" target="_blank" rel="noopener noreferrer">instagram</a>
+				<a class="social-link social-link--youtube" href="https://www.youtube.com/@angudeluma" target="_blank" rel="noopener noreferrer">youtube</a>
+				<a class="social-link social-link--newgrounds" href="https://angudelu.newgrounds.com/" target="_blank" rel="noopener noreferrer"><span>new</span>grounds</a>
+			</nav>
+		</div>
 		<div class="grid">
-			<section class="section magenta"><h2><a href="historial-magenta.html">magenta</a></h2><div class="grid-text" data-text-file="texto-magenta.txt">Cargando texto...</div></section>
-			<section class="section yellow"><h2><a href="historial-amarillo.html">amarillo</a></h2><div class="grid-text" data-text-file="texto-amarillo.txt">Cargando texto...</div></section>
-			<section class="section cyan"><h2><a href="historial-cian.html">cian</a></h2><div class="grid-text" data-text-file="texto-cian.txt">Cargando texto...</div></section>
-			<section class="section black"><h2><a href="historial-negro.html">negro</a></h2><div class="grid-text" data-text-file="texto-negro.txt">Cargando texto...</div></section>
+			<section class="section magenta"><h2><a href="historial-magenta.html">magenta</a></h2><div class="grid-text" data-text-file="texto-magenta.txt">cargando texto...</div></section>
+			<section class="section yellow"><h2><a href="historial-amarillo.html">amarillo</a></h2><div class="grid-text" data-text-file="texto-amarillo.txt">cargando texto...</div></section>
+			<section class="section cyan"><h2><a href="historial-cian.html">cian</a></h2><div class="grid-text" data-text-file="texto-cian.txt">cargando texto...</div></section>
+			<section class="section black"><h2><a href="historial-negro.html">novedades!!!</a></h2><div class="grid-text" data-text-file="texto-negro.txt">cargando texto...</div></section>
 		</div>
 		<section class="comments-panel" aria-labelledby="comments-title">
-			<h2 id="comments-title">Comentarios</h2>
+			<h2 id="comments-title">comentarios</h2>
 			<form id="comment-form">
-				<label for="comment-name">Usuario:contraseña</label>
+				<label for="comment-name">usuario:contraseña</label>
 				<div class="password-field">
 					<input id="comment-name" name="name" type="password" maxlength="160" autocomplete="current-password" placeholder="usuario:contraseña" required>
 					<button id="toggle-password" class="toggle-password" type="button" aria-controls="comment-name" aria-pressed="false">Mostrar</button>
 				</div>
-				<label for="comment-text">Comentario</label>
+				<label for="comment-text">comentario</label>
 				<textarea id="comment-text" name="comment" maxlength="280" rows="4" required></textarea>
 				<small class="comment-count" id="comment-count" aria-live="polite">0/280</small>
-				<button type="submit">Publicar comentario</button>
+				<button type="submit">publicar comentario</button>
 				<p class="comment-status" id="comment-status" role="status" aria-live="polite"></p>
 			</form>
-			<div class="comment-list" id="comment-list" aria-live="polite">Cargando comentarios...</div>
+			<div class="comment-list" id="comment-list" aria-live="polite">cargando comentarios...</div>
 			<iframe class="comment-transport" id="comment-transport" name="comment-transport" title="Envío de comentario" hidden></iframe>
 		</section>
 	</main>
 	<script src="comments-config.js"></script>
-	<script src="app.js?v=private-comments-2" defer></script>
+	<script src="app.js?v=post-times-1" defer></script>
 </body>
 </html>

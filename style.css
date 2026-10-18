@@ -4,12 +4,30 @@ body { margin: 0; background: #f6b6dc; color: #292129; font-family: Arial, sans-
 	width: min(100%, 1100px); min-height: 100vh; margin: 0 auto; padding: 32px;
 	border-left: 12px solid #e60091; border-right: 12px solid #e60091; background: #fbe0ef;
 }
-h1 { margin: 0 0 18px; color: #d00083; text-align: center; font: bold 25px "Comic Sans MS", "Comic Sans", cursive; }
+h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic Sans MS", "Comic Sans", cursive; }
 .video-frame { width: min(100%, 560px); aspect-ratio: 16 / 9; margin: 0 auto; overflow: hidden; background: #21151f; border: 5px solid #e60091; }
 .video { width: 100%; height: 100%; display: block; border: 0; }
+.social-menu { position: fixed; z-index: 10; top: 16px; right: calc((100% - 1100px) / 4 - 62px); width: 124px; }
+.social-menu-toggle { display: block; width: 100%; padding: 12px 8px; border: 1px solid #222; border-radius: 5px; background: #fff; color: #111; font: bold 18px "Comic Sans MS", "Comic Sans", cursive; cursor: pointer; }
+.social-menu-links { position: absolute; top: calc(100% + 8px); right: 0; display: grid; gap: 8px; width: 100%; visibility: hidden; opacity: 0; transform: translateY(-6px); transition: opacity .16s ease, transform .16s ease, visibility .16s; }
+.social-menu.is-open .social-menu-links { visibility: visible; opacity: 1; transform: translateY(0); }
+.social-link { display: block; padding: 10px 14px; border-radius: 5px; color: #fff; font-weight: bold; text-align: center; text-decoration: none; box-shadow: 0 2px 6px #0003; }
+.social-link--instagram { background: linear-gradient(115deg, #ff9a00, #ff0069 55%, #8a2be2); }
+.social-link--youtube { background: #f00; }
+.social-link--newgrounds { background: #111; color: #fff; }
+.social-link--newgrounds span { color: #ff8c00; }
+.social-link:focus-visible, .social-menu-toggle:focus-visible { outline: 3px solid #1673ff; outline-offset: 2px; }
+@media (hover: hover) and (min-width: 1350px) {
+	.social-menu:hover .social-menu-links, .social-menu:focus-within .social-menu-links { visibility: visible; opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 1349px) {
+	.social-menu { position: relative; top: auto; right: auto; width: min(100%, 560px); max-width: 100%; margin: 12px auto 0; transform: none; }
+	.social-menu-toggle { display: none; }
+	.social-menu-links { position: static; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; visibility: visible; opacity: 1; transform: none; }
+}
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 26px; }
 .section { overflow: hidden; }
-.section h2 { margin: 0; padding: 14px 16px; background: #292129; color: #fff; font-size: 18px; font-weight: bold; }
+.section h2 { margin: 0; padding: 14px 16px; background: var(--heading); color: #fff; font-size: 18px; font-weight: bold; }
 .section h2 a { color: inherit; text-decoration: none; }
 .section h2 a:hover, .section h2 a:focus-visible { text-decoration: underline; }
 .section .grid-text { min-height: 90px; padding: 12px 16px 16px; background: var(--light); color: #292129; line-height: 1.5; }
@@ -21,10 +39,10 @@ h1 { margin: 0 0 18px; color: #d00083; text-align: center; font: bold 25px "Comi
 .history-posts { display: grid; gap: 18px; }
 .history-post { padding: 16px; background: var(--light); line-height: 1.5; }
 .history-post .post-image { max-width: 680px; }
-.magenta { --light: #f5a9d7; }
-.yellow { --light: #fff0a6; }
-.cyan { --light: #a9eff2; }
-.black { --light: #d7d1d6; }
+.magenta { --light: #f5a9d7; --heading: #a00065; }
+.yellow { --light: #fff0a6; --heading: #8a6500; }
+.cyan { --light: #a9eff2; --heading: #087681; }
+.black { --light: #d7d1d6; --heading: #292129; }
 .history-body.magenta { background: #e60091; }
 .history-body.yellow { background: #ffcc33; }
 .history-body.cyan { background: #42cbd3; }
@@ -67,4 +85,8 @@ h1 { margin: 0 0 18px; color: #d00083; text-align: center; font: bold 25px "Comi
 .comment-date { color: #666; font-size: 12px; }
 .comment-text { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .comment-transport { display: none; }
-@media (max-width: 600px) { .page { padding: 22px 16px; border-width: 8px; } .grid { grid-template-columns: 1fr; } .video-frame { width: 100%; } }
+@media (max-width: 700px) {
+	.page { padding: 22px 16px; border-width: 8px; }
+	.grid { grid-template-columns: 1fr; }
+	.video-frame { width: 100%; }
+}
