@@ -33,9 +33,9 @@
 		<section class="comments-panel" aria-labelledby="comments-title">
 			<h2 id="comments-title">comentarios</h2>
 			<form id="comment-form">
-				<label for="comment-name">usuario:contraseña</label>
+				<label for="comment-name">usuario:contraseña (iniciar sesión)</label>
 				<div class="password-field">
-					<input id="comment-name" name="name" type="password" maxlength="160" autocomplete="off" placeholder="usuario:contraseña" required>
+					<input id="comment-name" name="name" type="password" maxlength="160" autocomplete="off" placeholder="usuario:contraseña">
 					<button id="toggle-password" class="toggle-password" type="button" aria-controls="comment-name" aria-pressed="false">Mostrar</button>
 					<button id="login-button" class="login-button" type="button">iniciar sesión</button>
 				</div>
@@ -43,6 +43,8 @@
 				<p class="login-status" id="login-status" role="status" aria-live="polite"></p>
 				<label for="comment-text">comentario</label>
 				<textarea id="comment-text" name="comment" maxlength="280" rows="4" required></textarea>
+				<label for="comment-recipient">destinatario (opcional, para un comentario privado)</label>
+				<input id="comment-recipient" type="text" maxlength="80" autocomplete="off">
 				<small class="comment-count" id="comment-count" aria-live="polite">0/280</small>
 				<button type="submit">publicar comentario</button>
 				<p class="comment-status" id="comment-status" role="status" aria-live="polite"></p>
@@ -52,6 +54,6 @@
 		</section>
 	</main>
 	<script src="comments-config.js"></script>
-	<script src="app.js?v=comment-replies-1" defer></script>
+	<script src="app.js?v=comment-login-only-2" defer></script>
 </body>
 </html>

@@ -384,6 +384,7 @@ function readComments_() {
       };
       if (!comment.private && !comment.deleted) {
         comment.comment = String(row[2]);
+        comment.replies = parseCommentReplies_(row[8]);
       }
       return comment;
     });
@@ -688,6 +689,11 @@ function addCommentReply_(parameters, requestId) {
             failure = {
               status: 409,
               error: "El identificador de respuesta ya está en uso."
+            };
+          } else if (replies.some((reply) => reply.username === username)) {
+            failure = {
+              status: 409,
+              error: "Ya has respondido a este comentario."
             };
           } else if (replies.length >= 5) {
             failure = {

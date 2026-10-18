@@ -200,18 +200,59 @@ document.querySelectorAll("[data-history-file]").forEach(async (element) => {
 let activeCommentCredentials = null;
 
 function rememberCommentCredentials(credentials) {
-	const recipientSeparator = credentials.lastIndexOf("@");
-	const senderCredentials = recipientSeparator >= 0
-		? credentials.slice(0, recipientSeparator)
-		: credentials;
-	const parsed = parseManagementCredentials(senderCredentials);
+	const parsed = parseManagementCredentials(credentials);
 	activeCommentCredentials = parsed;
 
-	const credentialsInput = document.querySelector("#comment-name");
-	if (credentialsInput) {
-		credentialsInput.value = `${parsed.username}:${parsed.password}`;
-	}
+	replaceCredentialsWithUsername(document.querySelector("#comment-name"), true);
+	document.querySelectorAll(".comment-replies").forEach((container) => {
+		const replyOption = container.closest(".comment")?.querySelector("[data-comment-reply-option]");
+		if (replyOption) {
+			replyOption.disabled = hasReachedReplyLimit(container.replyData || []);
+		}
+	});
 	unlockEligiblePrivateComments();
+}
+
+function replaceCredentialsWithUsername(input, mainField = false) {
+	if (!input?.isConnected) {
+		return;
+	}
+	const username = document.createElement("strong");
+	username.className = "comment-signed-in-user";
+	username.textContent = activeCommentCredentials.username;
+	const field = input.parentElement;
+	input.replaceWith(username);
+	if (mainField) {
+		document.querySelector("#comment-form label[for='comment-name']").textContent = "usuario con sesión iniciada";
+		document.querySelector("#toggle-password").hidden = true;
+		document.querySelector("#login-button").hidden = true;
+	} else {
+		field?.querySelector(".comment-credentials-toggle")?.remove();
+	}
+}
+
+function getCommentCredentials() {
+	if (!activeCommentCredentials) {
+		throw new Error("Tienes que iniciar sesión primero.");
+	}
+	return `${activeCommentCredentials.username}:${activeCommentCredentials.password}`;
+}
+
+function requireCommentLogin(status) {
+	if (activeCommentCredentials) {
+		return true;
+	}
+	status.textContent = "Tienes que iniciar sesión primero.";
+	status.classList.add("comment-status--error");
+	document.querySelector("#comment-name")?.focus();
+	return false;
+}
+
+function hasReachedReplyLimit(replies) {
+	return replies.length >= 5 || Boolean(
+		activeCommentCredentials &&
+		replies.some((reply) => reply.username === activeCommentCredentials.username)
+	);
 }
 
 function unlockEligiblePrivateComments() {
@@ -261,7 +302,7 @@ function renderCommentReplies(container, replies) {
 	container.replyData = replies;
 	const replyOption = container.closest(".comment")?.querySelector("[data-comment-reply-option]");
 	if (replyOption) {
-		replyOption.disabled = replies.length >= 5;
+		replyOption.disabled = hasReachedReplyLimit(replies);
 	}
 	replies.forEach((reply) => {
 		const pin = document.createElement("button");
@@ -363,46 +404,39 @@ function createCommentElement(comment) {
 		cover.setAttribute("aria-label", "Comentario privado");
 
 		const prompt = document.createElement("p");
-		prompt.textContent = "comentario privado. introdueix usuario:contraseña del remitente o destinatario para mostrarlo";
+		prompt.textContent = "comentario privado. inicia sesión como remitente o destinatario para mostrarlo";
 		const form = document.createElement("form");
 		form.className = "private-comment-form";
-		const credentials = document.createElement("input");
-		credentials.type = "password";
-		credentials.name = "credentials";
-		credentials.autocomplete = "current-password";
-		credentials.placeholder = "usuario:contraseña";
-		credentials.required = true;
 		const unlock = document.createElement("button");
 		unlock.type = "submit";
 		unlock.textContent = "mostrar comentario";
 		const status = document.createElement("small");
 		status.className = "private-comment-status";
 		status.setAttribute("role", "status");
-		form.append(credentials, unlock, status);
+		form.append(unlock, status);
 		form.addEventListener("submit", async (event) => {
 			event.preventDefault();
+			if (!requireCommentLogin(status)) {
+				return;
+			}
 			unlock.disabled = true;
 			status.textContent = "comprovando...";
 			status.classList.remove("comment-status--error");
 			try {
 				const unlocked = window.COMMENTS_API_URL
-					? await unlockAppsScriptComment(comment.requestId, credentials.value)
-					: await unlockLocalComment(comment.requestId, credentials.value);
+					? await unlockAppsScriptComment(comment.requestId, getCommentCredentials())
+					: await unlockLocalComment(comment.requestId, getCommentCredentials());
 				const paragraph = document.createElement("p");
 				paragraph.className = "comment-text";
 				paragraph.textContent = unlocked.comment;
 				cover.replaceWith(paragraph);
 				renderCommentReplies(article.querySelector(".comment-replies"), unlocked.replies || []);
-				rememberCommentCredentials(credentials.value);
 			} catch (error) {
 				status.textContent = error.message || "no se va poder mostrar el comentario";
 				status.classList.add("comment-status--error");
 				unlock.disabled = false;
 			}
 		});
-		if (activeCommentCredentials) {
-			credentials.value = `${activeCommentCredentials.username}:${activeCommentCredentials.password}`;
-		}
 		cover.append(prompt, form);
 		article.append(cover);
 	} else {
@@ -455,35 +489,12 @@ function createCommentElement(comment) {
 		menuToggle.setAttribute("aria-expanded", "false");
 	}
 
-	function createCredentialsField() {
-		const field = document.createElement("div");
-		field.className = "comment-credentials-field";
-		const credentials = document.createElement("input");
-		credentials.type = "password";
-		credentials.name = "credentials";
-		credentials.autocomplete = "current-password";
-		credentials.placeholder = "usuario:contraseña";
-		credentials.required = true;
-		const toggle = document.createElement("button");
-		toggle.className = "comment-credentials-toggle";
-		toggle.type = "button";
-		toggle.textContent = "mostrar";
-		toggle.setAttribute("aria-label", "mostrar usuario y contraseña");
-		toggle.setAttribute("aria-pressed", "false");
-		toggle.addEventListener("click", () => {
-			const showingCredentials = credentials.type === "password";
-			credentials.type = showingCredentials ? "text" : "password";
-			toggle.textContent = showingCredentials ? "ocultar" : "mostrar";
-			toggle.setAttribute("aria-label", showingCredentials
-				? "ocultar usuario y contraseña"
-				: "mostrar usuario y contraseña");
-			toggle.setAttribute("aria-pressed", String(showingCredentials));
-		});
-		field.append(credentials, toggle);
-		if (activeCommentCredentials) {
-			credentials.value = `${activeCommentCredentials.username}:${activeCommentCredentials.password}`;
-		}
-		return { field, input: credentials };
+	function showLoginRequired() {
+		const status = createManagementStatus();
+		status.textContent = "Tienes que iniciar sesión primero.";
+		status.classList.add("comment-status--error");
+		showManagementForm(status, "");
+		document.querySelector("#comment-name")?.focus();
 	}
 
 	function createManagementStatus() {
@@ -494,9 +505,12 @@ function createCommentElement(comment) {
 	}
 
 	editOption.addEventListener("click", () => {
+		if (!activeCommentCredentials) {
+			showLoginRequired();
+			return;
+		}
 		const form = document.createElement("form");
 		form.className = "comment-manage-form";
-		const credentials = createCredentialsField();
 		const editedText = document.createElement("textarea");
 		editedText.name = "comment";
 		editedText.maxLength = 280;
@@ -525,11 +539,10 @@ function createCommentElement(comment) {
 			buttons.prepend(loadPrivate);
 			loadPrivate.addEventListener("click", async () => {
 				loadPrivate.disabled = true;
-				status.textContent = "comprobando credenciales...";
+				status.textContent = "cargando comentario privado...";
 				status.classList.remove("comment-status--error");
 				try {
-					const result = await loadPrivateComment(comment.requestId, credentials.input.value);
-					rememberCommentCredentials(credentials.input.value);
+					const result = await loadPrivateComment(comment.requestId, getCommentCredentials());
 					editedText.value = result.comment;
 					editedText.required = true;
 					editedText.placeholder = "comentario";
@@ -547,7 +560,7 @@ function createCommentElement(comment) {
 			management.hidden = true;
 			article.classList.remove("comment--confirm-delete");
 		});
-		form.append(credentials.field, editedText, buttons, status);
+		form.append(editedText, buttons, status);
 		form.addEventListener("submit", async (event) => {
 			event.preventDefault();
 			save.disabled = true;
@@ -555,9 +568,8 @@ function createCommentElement(comment) {
 			status.classList.remove("comment-status--error");
 			try {
 				const result = await submitCommentManagement(
-					"edit", comment, credentials.input.value, editedText.value, "save"
+					"edit", comment, getCommentCredentials(), editedText.value, "save"
 				);
-				rememberCommentCredentials(credentials.input.value);
 				commentListRevision += 1;
 				article.replaceWith(createCommentElement(result.comment));
 				unlockEligiblePrivateComments();
@@ -571,9 +583,12 @@ function createCommentElement(comment) {
 	});
 
 	deleteOption.addEventListener("click", () => {
+		if (!activeCommentCredentials) {
+			showLoginRequired();
+			return;
+		}
 		const form = document.createElement("form");
 		form.className = "comment-manage-form";
-		const credentials = createCredentialsField();
 		const confirm = document.createElement("button");
 		confirm.type = "submit";
 		confirm.className = "comment-delete-confirm";
@@ -587,7 +602,7 @@ function createCommentElement(comment) {
 			management.hidden = true;
 			article.classList.remove("comment--confirm-delete");
 		});
-		form.append(credentials.field, confirm, cancel, status);
+		form.append(confirm, cancel, status);
 		form.addEventListener("submit", async (event) => {
 			event.preventDefault();
 			confirm.disabled = true;
@@ -595,9 +610,8 @@ function createCommentElement(comment) {
 			status.classList.remove("comment-status--error");
 			try {
 				const result = await submitCommentManagement(
-					"delete", comment, credentials.input.value
+					"delete", comment, getCommentCredentials()
 				);
-				rememberCommentCredentials(credentials.input.value);
 				commentListRevision += 1;
 				article.replaceWith(createCommentElement(result.comment));
 				unlockEligiblePrivateComments();
@@ -611,25 +625,19 @@ function createCommentElement(comment) {
 	});
 
 	replyOption.addEventListener("click", () => {
+		if (!activeCommentCredentials) {
+			showLoginRequired();
+			return;
+		}
 		const form = document.createElement("form");
 		form.className = "comment-reply-form";
 		const status = createManagementStatus();
-		let credentials;
-		if (activeCommentCredentials) {
-			credentials = `${activeCommentCredentials.username}:${activeCommentCredentials.password}`;
-			const identity = document.createElement("p");
-			identity.className = "comment-reply-identity";
-			identity.textContent = `respondiendo como ${activeCommentCredentials.username}`;
-			form.append(identity);
-		} else {
-			const credentialsInput = document.createElement("input");
-			credentialsInput.type = "password";
-			credentialsInput.autocomplete = "current-password";
-			credentialsInput.placeholder = "usuario:contraseña";
-			credentialsInput.required = true;
-			form.append(credentialsInput);
-			credentials = credentialsInput;
-		}
+		const identity = document.createElement("p");
+		identity.className = "comment-reply-identity";
+		const username = document.createElement("strong");
+		username.className = "comment-signed-in-user";
+		username.textContent = activeCommentCredentials.username;
+		identity.append(username);
 		const text = document.createElement("input");
 		text.type = "text";
 		text.name = "reply";
@@ -649,18 +657,14 @@ function createCommentElement(comment) {
 		cancel.addEventListener("click", () => {
 			management.hidden = true;
 		});
-		form.append(text, buttons, status);
+		form.append(identity, text, buttons, status);
 		form.addEventListener("submit", async (event) => {
 			event.preventDefault();
 			submit.disabled = true;
 			status.textContent = "publicando respuesta...";
 			status.classList.remove("comment-status--error");
 			try {
-				const credentialsValue = typeof credentials === "string"
-					? credentials
-					: credentials.value;
-				const result = await submitCommentReply(comment, credentialsValue, text.value);
-				rememberCommentCredentials(credentialsValue);
+				const result = await submitCommentReply(comment, getCommentCredentials(), text.value);
 				comment.replies = [...(replies.replyData || comment.replies || []), result.reply];
 				renderCommentReplies(replies, comment.replies);
 				management.hidden = true;
@@ -671,11 +675,7 @@ function createCommentElement(comment) {
 			}
 		});
 		showManagementForm(form, "reply");
-		if (typeof credentials !== "string") {
-			credentials.focus();
-		} else {
-			text.focus();
-		}
+		text.focus();
 	});
 	return article;
 }
@@ -1252,15 +1252,16 @@ if (commentForm) {
 
 	commentForm.addEventListener("submit", async (event) => {
 		event.preventDefault();
-		const formData = new FormData(commentForm);
-		const credentials = String(
-			formData.get("name") ||
-			(activeCommentCredentials
-				? `${activeCommentCredentials.username}:${activeCommentCredentials.password}`
-				: "")
-		);
-		const commentText = String(formData.get("comment"));
 		const status = document.querySelector("#comment-status");
+		if (!requireCommentLogin(status)) {
+			return;
+		}
+		const credentials = getCommentCredentials();
+		const recipient = document.querySelector("#comment-recipient").value.trim();
+		const credentialsWithRecipient = recipient
+			? `${credentials}@${recipient}`
+			: credentials;
+		const commentText = commentInput.value;
 		const submitButton = commentForm.querySelector("button[type='submit']");
 		status.textContent = "Publicando...";
 		status.classList.remove("comment-status--error");
@@ -1270,7 +1271,7 @@ if (commentForm) {
 			let comment;
 			if (window.COMMENTS_API_URL) {
 				comment = await submitAppsScriptComment(
-					credentials,
+					credentialsWithRecipient,
 					commentText
 				);
 			} else {
@@ -1278,10 +1279,10 @@ if (commentForm) {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
-						name: credentials,
+						name: credentialsWithRecipient,
 						comment: commentText,
 						requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-						recipientProvided: String(credentials.includes("@"))
+						recipientProvided: String(Boolean(recipient))
 					})
 				});
 				const result = await response.json();
@@ -1301,10 +1302,6 @@ if (commentForm) {
 			}
 			list.prepend(createCommentElement(comment));
 			commentForm.reset();
-			passwordInput.type = "password";
-			togglePassword.textContent = "Mostrar";
-			togglePassword.setAttribute("aria-pressed", "false");
-			rememberCommentCredentials(credentials);
 			unlockEligiblePrivateComments();
 			commentCount.textContent = "0/280";
 			status.textContent = "comentario publicado";

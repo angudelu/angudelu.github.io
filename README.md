@@ -4,38 +4,40 @@ La caja de comentarios está debajo de la rejilla de colores. Para publicar nece
 
 ## Publicar un comentario normal
 
-1. En **Usuario:contraseña**, escribe tu usuario y contraseña juntos, separados por dos puntos. Por ejemplo: `usuario:contraseña`.
+1. Inicia sesión con **Usuario:contraseña**. Escribe tu usuario y contraseña separados por dos puntos y pulsa **Iniciar sesión**.
 2. Usa el botón **Mostrar** si quieres comprobar lo que has escrito; vuelve a pulsarlo para ocultar la contraseña.
 3. Escribe el mensaje en **Comentario**. El contador indica cuántos caracteres llevas: se permiten hasta **280**.
 4. Pulsa **Publicar comentario**. Si se publica correctamente, aparecerá en la lista.
 
 Cada cuenta puede publicar como máximo **5 comentarios al día**.
 
-Después de publicar, desbloquear un comentario privado o iniciar sesión correctamente, las credenciales permanecen solo en la memoria de la página hasta que se recargue. Se reutilizan para publicar y editar o eliminar comentarios durante esa visita, y para desbloquear automáticamente los comentarios privados dirigidos a esa cuenta o enviados por ella. No se guardan en el almacenamiento del navegador.
+Después de iniciar sesión, la cuenta y sus credenciales permanecen solo en la memoria de la página hasta que se recargue. Se reutilizan para publicar, responder, editar y eliminar, y para desbloquear automáticamente los comentarios privados dirigidos a esa cuenta o enviados por ella. No se guardan en el almacenamiento del navegador. Si intentas usar esas opciones sin iniciar sesión, la página te lo indicará.
 
 También puedes pulsar **Iniciar sesión** junto al botón **Mostrar** para validar la cuenta sin publicar un comentario. Si todavía no tienes cuenta, usa el enlace a Instagram que aparece bajo el campo.
 
 ## Enviar un comentario privado
 
-Para que solo otra cuenta concreta y tú podáis leer el comentario, escribe en el campo de usuario:
+Para que solo otra cuenta concreta y tú podáis leer el comentario, inicia sesión y escribe el usuario de destino en **Destinatario (opcional, para un comentario privado)**:
 
 ```text
-remitente:contraseña@destinatario
+destinatario
 ```
 
-Sustituye `remitente` y `contraseña` por tus credenciales y `destinatario` por el nombre de una cuenta existente. Después escribe el comentario y publícalo como siempre. Si el destinatario no existe, aparecerá el mensaje **«destinatario no existente»**.
+El destinatario debe ser una cuenta existente. Después escribe el comentario y publícalo como siempre. Si el destinatario no existe, aparecerá el mensaje **«destinatario no existente»**.
 
-El comentario aparecerá oculto, con el encabezado `remitente@destinatario`, para que se identifique quién lo envió y a quién va dirigido. Para verlo, el remitente o el destinatario debe escribir sus propias credenciales con el formato `usuario:contraseña` en la caja negra del comentario y pulsar **Mostrar comentario**. Otras cuentas no pueden desbloquearlo.
+El comentario aparecerá oculto, con el encabezado `remitente@destinatario`, para que se identifique quién lo envió y a quién va dirigido. Para verlo, el remitente o el destinatario debe iniciar sesión y pulsar **Mostrar comentario**. Otras cuentas no pueden desbloquearlo.
 
 ## Editar o eliminar un comentario
 
-Pulsa el icono de tres puntos del comentario y elige **Editar** o **Eliminar**. Ambas acciones requieren las credenciales del autor (`usuario:contraseña`); usa **Mostrar/Ocultar** para comprobar lo que has escrito. No se permite modificar comentarios de otra cuenta. Al editar, el texto actualizado conserva la fecha original y aparece marcado como **(editado)**. Los comentarios eliminados se sustituyen por el texto *comentario eliminado* en su posición.
+Pulsa el icono de tres puntos del comentario y elige **Editar** o **Eliminar**. Debes iniciar sesión primero y solo puedes modificar tus propios comentarios. Al editar, el texto actualizado conserva la fecha original y aparece marcado como **(editado)**. Los comentarios eliminados se sustituyen por el texto *comentario eliminado* en su posición.
 
-Si el comentario es privado, primero carga su texto desde el formulario de edición con las credenciales del autor. El comentario seguirá oculto para los demás después de guardarlo.
+Si el comentario es privado, inicia sesión como autor y carga su texto desde el formulario de edición. El comentario seguirá oculto para los demás después de guardarlo.
 
 ## Responder a un comentario
 
-Pulsa los tres puntos y elige **Responder**. Si ya has iniciado sesión, se mostrará tu usuario; si no, introduce `usuario:contraseña`. Las respuestas admiten hasta **50 caracteres** y un comentario puede tener hasta **5 respuestas**. No cuentan para el límite diario de comentarios. Se muestran como insectos en la parte superior derecha; al pasar el cursor o pulsarlos aparece el texto. Las respuestas a comentarios privados solo pueden publicarlas y leerlas el remitente o el destinatario.
+Pulsa los tres puntos y elige **Responder**. Debes iniciar sesión primero. Cada usuario puede dejar **una respuesta por comentario**; cada comentario admite hasta **5 respuestas** en total y cada respuesta hasta **50 caracteres**. No cuentan para el límite diario de comentarios. Se muestran como insectos en la parte superior derecha; al pasar el cursor o pulsarlos aparece el texto. Las respuestas a comentarios públicos son visibles para todos; las respuestas a comentarios privados solo pueden publicarlas y leerlas el remitente o el destinatario.
+
+Solo el formulario superior pide usuario y contraseña para iniciar sesión. La contraseña permanece solo en memoria hasta que se recargue la página.
 
 ## Mensajes de error habituales
 
@@ -43,6 +45,7 @@ Pulsa los tres puntos y elige **Responder**. Si ya has iniciado sesión, se most
 - **Usuario no existente** o **La contraseña es incorrecta**: revisa las credenciales.
 - **El usuario y la contraseña no corresponden a este comentario**: solo el autor puede editarlo o eliminarlo; verifica que uses la cuenta con la que lo publicaste.
 - **La respuesta admite hasta 50 caracteres** o **Este comentario ya tiene el máximo de 5 respuestas**: acorta la respuesta o elige otro comentario.
+- **Ya has respondido a este comentario**: cada usuario solo puede responder una vez a cada comentario.
 - **Solo el remitente o destinatario puede responder a este comentario privado**: inicia sesión con una de las dos cuentas.
 - **No se pudo modificar/eliminar el comentario**: revisa la conexión e inténtalo de nuevo.
 - **destinatario no existente**: comprueba el nombre de la cuenta destinataria.

@@ -479,6 +479,12 @@ class SiteHandler(SimpleHTTPRequestHandler):
                         return
                     self.send_json(HTTPStatus.CREATED, {"reply": existing_reply})
                     return
+                if any(reply.get("username") == verified_username for reply in replies):
+                    self.send_json(
+                        HTTPStatus.CONFLICT,
+                        {"error": "Ya has respondido a este comentario."},
+                    )
+                    return
                 if len(replies) >= 5:
                     self.send_json(
                         HTTPStatus.CONFLICT,
