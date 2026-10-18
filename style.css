@@ -17,6 +17,9 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .social-link--newgrounds { background: #111; color: #fff; }
 .social-link--newgrounds span { color: #ff8c00; }
 .social-link:focus-visible, .social-menu-toggle:focus-visible { outline: 3px solid #1673ff; outline-offset: 2px; }
+.explore-button { display: block; width: fit-content; margin: 16px auto 0; padding: 10px 24px; border-radius: 5px; background: #12345a; color: #fff; font-weight: bold; text-align: center; text-decoration: none; }
+.explore-button:hover { background: #0b2745; }
+.explore-button:focus-visible { outline: 3px solid #1673ff; outline-offset: 2px; }
 @media (hover: hover) and (min-width: 1350px) {
 	.social-menu:hover .social-menu-links, .social-menu:focus-within .social-menu-links { visibility: visible; opacity: 1; transform: translateY(0); }
 }
@@ -89,4 +92,5 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 	.page { padding: 22px 16px; border-width: 8px; }
 	.grid { grid-template-columns: 1fr; }
 	.video-frame { width: 100%; }
+	.social-link { padding-right: 6px; padding-left: 6px; font-size: clamp(12px, 3.5vw, 16px); }
 }
