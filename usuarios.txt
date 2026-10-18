@@ -1,2 +1,0 @@
-# Formato: usuario:sal-hexadecimal:hash-PBKDF2-SHA256
-angudelu:a6d469473ad0ed1903af791b9c3c51a1:7978fbe952315fc8af26d1326bc12b2b75204ccbd96f1b0af32eda9700b976a5
