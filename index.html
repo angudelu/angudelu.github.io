@@ -35,9 +35,12 @@
 			<form id="comment-form">
 				<label for="comment-name">usuario:contraseña</label>
 				<div class="password-field">
-					<input id="comment-name" name="name" type="password" maxlength="160" autocomplete="current-password" placeholder="usuario:contraseña" required>
+					<input id="comment-name" name="name" type="password" maxlength="160" autocomplete="off" placeholder="usuario:contraseña" required>
 					<button id="toggle-password" class="toggle-password" type="button" aria-controls="comment-name" aria-pressed="false">Mostrar</button>
+					<button id="login-button" class="login-button" type="button">iniciar sesión</button>
 				</div>
+				<a class="login-help" href="https://www.instagram.com/andy.aut" target="_blank" rel="noopener noreferrer">¿no tienes usuario? tienes que hablar con Andrés para conseguir uno...</a>
+				<p class="login-status" id="login-status" role="status" aria-live="polite"></p>
 				<label for="comment-text">comentario</label>
 				<textarea id="comment-text" name="comment" maxlength="280" rows="4" required></textarea>
 				<small class="comment-count" id="comment-count" aria-live="polite">0/280</small>
@@ -49,6 +52,6 @@
 		</section>
 	</main>
 	<script src="comments-config.js"></script>
-	<script src="app.js?v=comment-management-2" defer></script>
+	<script src="app.js?v=comment-replies-1" defer></script>
 </body>
 </html>

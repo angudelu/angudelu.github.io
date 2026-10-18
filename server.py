@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import os
+import secrets
 import threading
 import tempfile
 from datetime import datetime
@@ -33,6 +34,24 @@ MISSING_PASSWORD_MESSAGE = (
 )
 INCORRECT_PASSWORD_MESSAGE = "La contraseña es incorrecta."
 UNKNOWN_USER_MESSAGE = "Usuario no existente. Comprueba el nombre o contacta con Andrés para conseguir una cuenta."
+
+
+def validate_comment_replies(replies):
+    if not isinstance(replies, list) or any(
+        not isinstance(reply, dict)
+        or not isinstance(reply.get("id"), str)
+        or not isinstance(reply.get("username"), str)
+        or not isinstance(reply.get("text"), str)
+        or not isinstance(reply.get("icon"), int)
+        or isinstance(reply.get("icon"), bool)
+        or not 1 <= reply["icon"] <= 5
+        or not isinstance(reply.get("angle"), int)
+        or isinstance(reply.get("angle"), bool)
+        or not -30 <= reply["angle"] <= 30
+        for reply in replies
+    ):
+        raise ValueError("Invalid saved replies data")
+    return replies
 
 
 class SiteHandler(SimpleHTTPRequestHandler):
@@ -95,8 +114,12 @@ class SiteHandler(SimpleHTTPRequestHandler):
                                             if isinstance(saved_comment.get("edited"), str)
                                             else ""
                                         )
+                                        replies = validate_comment_replies(
+                                            saved_comment.get("replies", [])
+                                        )
                                         saved_comment["edited"] = bool(edited_at)
                                         saved_comment["editedAt"] = edited_at
+                                        saved_comment["replies"] = replies
                                         comments.append(saved_comment)
                                 except json.JSONDecodeError as error:
                                     raise ValueError(
@@ -154,9 +177,11 @@ class SiteHandler(SimpleHTTPRequestHandler):
         request_path = urlsplit(self.path).path
         if request_path not in {
             "/api/comments",
+            "/api/comments/login",
             "/api/comments/unlock",
             "/api/comments/edit",
             "/api/comments/delete",
+            "/api/comments/reply",
         }:
             self.send_json(HTTPStatus.NOT_FOUND, {"error": "Ruta no encontrada."})
             return
@@ -184,11 +209,34 @@ class SiteHandler(SimpleHTTPRequestHandler):
             self.send_json(HTTPStatus.BAD_REQUEST, {"error": "El comentario no es válido."})
             return
 
+        if request_path == "/api/comments/login":
+            credentials = payload.get("credentials")
+            if not isinstance(credentials, str) or len(credentials) > MAX_CREDENTIALS_LENGTH:
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": MISSING_PASSWORD_MESSAGE})
+                return
+            try:
+                username, authentication_error = self.verify_credentials(credentials.strip())
+            except (OSError, ValueError) as error:
+                self.log_error("Could not verify login credentials: %s", error)
+                self.send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"error": "No se pudo iniciar sesión. Inténtalo más tarde."},
+                )
+                return
+            if authentication_error:
+                self.send_json(HTTPStatus.UNAUTHORIZED, {"error": authentication_error})
+                return
+            self.send_json(HTTPStatus.OK, {"username": username})
+            return
+
         if request_path == "/api/comments/unlock":
             self.unlock_comment(payload)
             return
         if request_path in {"/api/comments/edit", "/api/comments/delete"}:
             self.manage_comment(payload, request_path.rsplit("/", 1)[-1])
+            return
+        if request_path == "/api/comments/reply":
+            self.add_comment_reply(payload)
             return
 
         credentials = payload.get("name")
@@ -327,12 +375,149 @@ class SiteHandler(SimpleHTTPRequestHandler):
             if username not in {private_comment["name"], private_comment["recipient"]}:
                 self.send_json(HTTPStatus.FORBIDDEN, {"error": "No tienes permiso para mostrar este comentario."})
                 return
-            self.send_json(HTTPStatus.OK, {"comment": private_comment["comment"]})
+            replies = validate_comment_replies(private_comment.get("replies", []))
+            self.send_json(
+                HTTPStatus.OK,
+                {"comment": private_comment["comment"], "replies": replies},
+            )
         except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
             self.log_error("Could not unlock comment: %s", error)
             self.send_json(
                 HTTPStatus.INTERNAL_SERVER_ERROR,
                 {"error": "No se pudo mostrar el comentario privado."},
+            )
+
+    def add_comment_reply(self, payload):
+        username = payload.get("username")
+        password = payload.get("password")
+        comment_id = payload.get("commentId")
+        reply_id = payload.get("replyId")
+        text = payload.get("reply")
+        if (
+            not isinstance(username, str)
+            or not isinstance(password, str)
+            or not isinstance(comment_id, str)
+            or not comment_id
+            or not isinstance(reply_id, str)
+            or not reply_id
+            or len(reply_id) > 100
+            or not all(character.isalnum() or character in "-_" for character in reply_id)
+            or not isinstance(text, str)
+        ):
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": MISSING_PASSWORD_MESSAGE})
+            return
+        username = username.strip()
+        text = text.strip()
+        if len(username) + len(password) + 1 > MAX_CREDENTIALS_LENGTH:
+            self.send_json(
+                HTTPStatus.BAD_REQUEST,
+                {"error": "El usuario y la contraseña superan el límite permitido."},
+            )
+            return
+        if len(text.encode("utf-16-le")) // 2 > 50:
+            self.send_json(
+                HTTPStatus.BAD_REQUEST,
+                {"error": "La respuesta admite hasta 50 caracteres."},
+            )
+            return
+        if not text:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Escribe una respuesta."})
+            return
+        try:
+            verified_username, authentication_error = self.verify_credentials(
+                f"{username}:{password}"
+            )
+        except (OSError, ValueError) as error:
+            self.log_error("Could not verify reply credentials: %s", error)
+            self.send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {"error": "No se pudo verificar el usuario. Inténtalo más tarde."},
+            )
+            return
+        if authentication_error:
+            self.send_json(HTTPStatus.UNAUTHORIZED, {"error": authentication_error})
+            return
+
+        try:
+            with comments_lock:
+                if not COMMENTS_FILE.exists():
+                    self.send_json(HTTPStatus.NOT_FOUND, {"error": "No se encontró el comentario."})
+                    return
+                with COMMENTS_FILE.open("r", encoding="utf-8") as file:
+                    records = [
+                        json.loads(line)
+                        for line in file
+                        if line.strip() and not line.lstrip().startswith("#")
+                    ]
+                record = next(
+                    (item for item in records if item.get("requestId") == comment_id),
+                    None,
+                )
+                if record is None:
+                    self.send_json(HTTPStatus.NOT_FOUND, {"error": "No se encontró el comentario."})
+                    return
+                if record.get("deleted"):
+                    self.send_json(HTTPStatus.GONE, {"error": "Este comentario ya fue eliminado."})
+                    return
+                if record.get("private") and verified_username not in {
+                    record.get("name"),
+                    record.get("recipient"),
+                }:
+                    self.send_json(
+                        HTTPStatus.FORBIDDEN,
+                        {"error": "Solo el remitente o destinatario puede responder a este comentario privado."},
+                    )
+                    return
+                replies = validate_comment_replies(record.get("replies", []))
+                existing_reply = next((item for item in replies if item.get("id") == reply_id), None)
+                if existing_reply:
+                    if existing_reply.get("username") != verified_username:
+                        self.send_json(
+                            HTTPStatus.CONFLICT,
+                            {"error": "El identificador de respuesta ya está en uso."},
+                        )
+                        return
+                    self.send_json(HTTPStatus.CREATED, {"reply": existing_reply})
+                    return
+                if len(replies) >= 5:
+                    self.send_json(
+                        HTTPStatus.CONFLICT,
+                        {"error": "Este comentario ya tiene el máximo de 5 respuestas."},
+                    )
+                    return
+                reply = {
+                    "id": reply_id,
+                    "username": verified_username,
+                    "text": text,
+                    "icon": secrets.randbelow(5) + 1,
+                    "angle": secrets.randbelow(61) - 30,
+                    "date": datetime.now().astimezone().isoformat(timespec="seconds"),
+                }
+                replies.append(reply)
+                record["replies"] = replies
+                temporary_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        mode="w",
+                        encoding="utf-8",
+                        dir=COMMENTS_FILE.parent,
+                        prefix=COMMENTS_FILE.name + ".",
+                        suffix=".tmp",
+                        delete=False,
+                    ) as file:
+                        temporary_path = Path(file.name)
+                        for item in records:
+                            file.write(json.dumps(item, ensure_ascii=False) + "\n")
+                    os.replace(temporary_path, COMMENTS_FILE)
+                finally:
+                    if temporary_path and temporary_path.exists():
+                        temporary_path.unlink()
+            self.send_json(HTTPStatus.CREATED, {"reply": reply})
+        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+            self.log_error("Could not save comment reply: %s", error)
+            self.send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {"error": "No se pudo guardar la respuesta. Inténtalo de nuevo."},
             )
 
     def manage_comment(self, payload, action):
@@ -466,6 +651,7 @@ class SiteHandler(SimpleHTTPRequestHandler):
                 }
                 if not record.get("private") and not record.get("deleted"):
                     public_comment["comment"] = record["comment"]
+                    public_comment["replies"] = record.get("replies", [])
                 self.send_json(HTTPStatus.OK, {"comment": public_comment})
         except (OSError, KeyError, ValueError, json.JSONDecodeError) as error:
             self.log_error("Could not manage comment: %s", error)

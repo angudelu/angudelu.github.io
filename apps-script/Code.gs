@@ -34,9 +34,9 @@ function setup() {
   if (!sheet) {
     sheet = spreadsheet.insertSheet(COMMENTS_SHEET_NAME);
   }
-  sheet.getRange(1, 1, 1, 8).setValues([[
+  sheet.getRange(1, 1, 1, 9).setValues([[
     "fecha", "usuario", "comentario", "id_solicitud", "destinatario", "privado",
-    "editado", "eliminado"
+    "editado", "eliminado", "respuestas"
   ]]);
 
   if (!properties.getProperty(COMMENTS_USERS_PROPERTY)) {
@@ -147,7 +147,7 @@ function doGet(event) {
   try {
     const comments = readComments_();
     const body = callback + "(" + JSON.stringify({
-      apiVersion: 2,
+      apiVersion: 4,
       comments: comments
     }) + ");";
     return ContentService.createTextOutput(body)
@@ -176,6 +176,12 @@ function doPost(event) {
 
   if (parameters.action === "unlock") {
     return unlockPrivateComment_(parameters, requestId);
+  }
+  if (parameters.action === "reply") {
+    return addCommentReply_(parameters, requestId);
+  }
+  if (parameters.action === "login") {
+    return login_(parameters, requestId);
   }
   if (parameters.action === "edit" || parameters.action === "delete") {
     return manageComment_(parameters, requestId);
@@ -280,7 +286,10 @@ function doPost(event) {
           commentRecord.comment,
           commentRecord.requestId,
           recipient,
-          commentRecord.private
+          commentRecord.private,
+          "",
+          false,
+          "[]"
         ]);
       }
     } finally {
@@ -313,6 +322,36 @@ function doPost(event) {
   }
 }
 
+function login_(parameters, requestId) {
+  const username = String(parameters.username || "").trim();
+  const password = String(parameters.password || "");
+  try {
+    const authentication = verifyUser_(username, password);
+    if (!authentication.valid) {
+      return postMessageResponse_({
+        requestId: requestId,
+        ok: false,
+        status: 401,
+        error: authentication.error
+      });
+    }
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: true,
+      status: 200,
+      username: username
+    });
+  } catch (error) {
+    console.error(error);
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 500,
+      error: "No se pudo iniciar sesión. Inténtalo más tarde."
+    });
+  }
+}
+
 function readComments_() {
   const spreadsheetId = PropertiesService.getScriptProperties()
     .getProperty(COMMENTS_SPREADSHEET_PROPERTY);
@@ -329,7 +368,7 @@ function readComments_() {
     return [];
   }
 
-  return sheet.getRange(2, 1, lastRow - 1, 8).getValues()
+  return sheet.getRange(2, 1, lastRow - 1, 9).getValues()
     .filter((row) => row[0] && row[1] && (row[2] || row[7] === true))
     .reverse()
     .map((row) => {
@@ -449,7 +488,7 @@ function manageComment_(parameters, requestId) {
     let failure;
     try {
       const lastRow = sheet.getLastRow();
-      const rows = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 8).getValues() : [];
+      const rows = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 9).getValues() : [];
       const rowIndex = rows.findIndex((row) => String(row[3] || "") === commentId);
       if (rowIndex < 0) {
         failure = { status: 404, error: "No se encontró el comentario." };
@@ -527,8 +566,175 @@ function commentFromRow_(row) {
   };
   if (!comment.private && !comment.deleted) {
     comment.comment = String(row[2]);
+    comment.replies = parseCommentReplies_(row[8]);
   }
   return comment;
+}
+
+function parseCommentReplies_(value) {
+  if (!value) {
+    return [];
+  }
+  const replies = JSON.parse(String(value));
+  if (
+    !Array.isArray(replies) ||
+    replies.some((reply) =>
+      !reply ||
+      typeof reply !== "object" ||
+      Array.isArray(reply) ||
+      typeof reply.id !== "string" ||
+      typeof reply.username !== "string" ||
+      typeof reply.text !== "string" ||
+      !Number.isInteger(reply.icon) ||
+      reply.icon < 1 ||
+      reply.icon > 5 ||
+      !Number.isInteger(reply.angle) ||
+      reply.angle < -30 ||
+      reply.angle > 30
+    )
+  ) {
+    throw new Error("El formato de las respuestas guardadas no es válido.");
+  }
+  return replies;
+}
+
+function addCommentReply_(parameters, requestId) {
+  const username = String(parameters.username || "").trim();
+  const password = String(parameters.password || "");
+  const commentId = String(parameters.commentId || "");
+  const replyId = String(parameters.replyId || "");
+  const text = String(parameters.reply || "").trim();
+  if (
+    !commentId ||
+    !/^[\w-]{1,100}$/.test(commentId) ||
+    !/^[\w-]{1,100}$/.test(replyId)
+  ) {
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 400,
+      error: "Solicitud no válida."
+    });
+  }
+  if (!text) {
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 400,
+      error: "Escribe una respuesta."
+    });
+  }
+  if (text.length > 50) {
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 400,
+      error: "La respuesta admite hasta 50 caracteres."
+    });
+  }
+  if (username.length + password.length + 1 > MAX_CREDENTIALS_LENGTH) {
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 400,
+      error: "El usuario y la contraseña superan el límite permitido."
+    });
+  }
+
+  try {
+    const authentication = verifyUser_(username, password);
+    if (!authentication.valid) {
+      return postMessageResponse_({
+        requestId: requestId,
+        ok: false,
+        status: 401,
+        error: authentication.error
+      });
+    }
+    const spreadsheetId = PropertiesService.getScriptProperties()
+      .getProperty(COMMENTS_SPREADSHEET_PROPERTY);
+    const sheet = spreadsheetId
+      ? SpreadsheetApp.openById(spreadsheetId).getSheetByName(COMMENTS_SHEET_NAME)
+      : null;
+    if (!sheet) {
+      throw new Error("No existe la hoja de comentarios.");
+    }
+
+    const lock = LockService.getScriptLock();
+    lock.waitLock(10000);
+    let result;
+    let failure;
+    try {
+      const lastRow = sheet.getLastRow();
+      const rows = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 9).getValues() : [];
+      const rowIndex = rows.findIndex((row) => String(row[3] || "") === commentId);
+      if (rowIndex < 0) {
+        failure = { status: 404, error: "No se encontró el comentario." };
+      } else {
+        const row = rows[rowIndex];
+        const replies = parseCommentReplies_(row[8]);
+        if (row[7] === true) {
+          failure = { status: 410, error: "Este comentario ya fue eliminado." };
+        } else if (row[5] === true && username !== String(row[1]) && username !== String(row[4])) {
+          failure = {
+            status: 403,
+            error: "Solo el remitente o destinatario puede responder a este comentario privado."
+          };
+        } else {
+          const existingReply = replies.find((reply) => reply.id === replyId);
+          if (existingReply && existingReply.username === username) {
+            result = existingReply;
+          } else if (existingReply) {
+            failure = {
+              status: 409,
+              error: "El identificador de respuesta ya está en uso."
+            };
+          } else if (replies.length >= 5) {
+            failure = {
+              status: 409,
+              error: "Este comentario ya tiene el máximo de 5 respuestas."
+            };
+          } else {
+            result = {
+              id: replyId,
+              username: username,
+              text: text,
+              icon: Math.floor(Math.random() * 5) + 1,
+              angle: Math.floor(Math.random() * 61) - 30,
+              date: new Date().toISOString()
+            };
+            replies.push(result);
+            sheet.getRange(rowIndex + 2, 9).setValue(JSON.stringify(replies));
+          }
+        }
+      }
+    } finally {
+      lock.releaseLock();
+    }
+
+    if (failure) {
+      return postMessageResponse_({
+        requestId: requestId,
+        ok: false,
+        status: failure.status,
+        error: failure.error
+      });
+    }
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: true,
+      status: 201,
+      reply: result
+    });
+  } catch (error) {
+    console.error(error);
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 500,
+      error: "No se pudo guardar la respuesta. Inténtalo de nuevo."
+    });
+  }
 }
 
 function userExists_(username) {
@@ -563,7 +769,7 @@ function unlockPrivateComment_(parameters, requestId) {
       throw new Error("No existe la hoja de comentarios.");
     }
     const lastRow = sheet.getLastRow();
-    const rows = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 6).getValues() : [];
+    const rows = lastRow >= 2 ? sheet.getRange(2, 1, lastRow - 1, 9).getValues() : [];
     const record = rows.find((row) =>
       String(row[3] || "") === commentId && row[5] === true && row[7] !== true
     );
@@ -587,7 +793,8 @@ function unlockPrivateComment_(parameters, requestId) {
       requestId: requestId,
       ok: true,
       status: 200,
-      comment: String(record[2])
+      comment: String(record[2]),
+      replies: parseCommentReplies_(record[8])
     });
   } catch (error) {
     console.error(error);

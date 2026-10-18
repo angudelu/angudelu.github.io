@@ -11,6 +11,10 @@ La caja de comentarios está debajo de la rejilla de colores. Para publicar nece
 
 Cada cuenta puede publicar como máximo **5 comentarios al día**.
 
+Después de publicar, desbloquear un comentario privado o iniciar sesión correctamente, las credenciales permanecen solo en la memoria de la página hasta que se recargue. Se reutilizan para publicar y editar o eliminar comentarios durante esa visita, y para desbloquear automáticamente los comentarios privados dirigidos a esa cuenta o enviados por ella. No se guardan en el almacenamiento del navegador.
+
+También puedes pulsar **Iniciar sesión** junto al botón **Mostrar** para validar la cuenta sin publicar un comentario. Si todavía no tienes cuenta, usa el enlace a Instagram que aparece bajo el campo.
+
 ## Enviar un comentario privado
 
 Para que solo otra cuenta concreta y tú podáis leer el comentario, escribe en el campo de usuario:
@@ -29,11 +33,17 @@ Pulsa el icono de tres puntos del comentario y elige **Editar** o **Eliminar**. 
 
 Si el comentario es privado, primero carga su texto desde el formulario de edición con las credenciales del autor. El comentario seguirá oculto para los demás después de guardarlo.
 
+## Responder a un comentario
+
+Pulsa los tres puntos y elige **Responder**. Si ya has iniciado sesión, se mostrará tu usuario; si no, introduce `usuario:contraseña`. Las respuestas admiten hasta **50 caracteres** y un comentario puede tener hasta **5 respuestas**. No cuentan para el límite diario de comentarios. Se muestran como insectos en la parte superior derecha; al pasar el cursor o pulsarlos aparece el texto. Las respuestas a comentarios privados solo pueden publicarlas y leerlas el remitente o el destinatario.
+
 ## Mensajes de error habituales
 
 - **Introduce el usuario y la contraseña separados por dos puntos**: escribe ambos en el campo, separados por `:`.
 - **Usuario no existente** o **La contraseña es incorrecta**: revisa las credenciales.
 - **El usuario y la contraseña no corresponden a este comentario**: solo el autor puede editarlo o eliminarlo; verifica que uses la cuenta con la que lo publicaste.
+- **La respuesta admite hasta 50 caracteres** o **Este comentario ya tiene el máximo de 5 respuestas**: acorta la respuesta o elige otro comentario.
+- **Solo el remitente o destinatario puede responder a este comentario privado**: inicia sesión con una de las dos cuentas.
 - **No se pudo modificar/eliminar el comentario**: revisa la conexión e inténtalo de nuevo.
 - **destinatario no existente**: comprueba el nombre de la cuenta destinataria.
 - **Has alcanzado el límite de 5 comentarios por día**: espera al siguiente día para volver a comentar.

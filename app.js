@@ -197,6 +197,120 @@ document.querySelectorAll("[data-history-file]").forEach(async (element) => {
 	}
 });
 
+let activeCommentCredentials = null;
+
+function rememberCommentCredentials(credentials) {
+	const recipientSeparator = credentials.lastIndexOf("@");
+	const senderCredentials = recipientSeparator >= 0
+		? credentials.slice(0, recipientSeparator)
+		: credentials;
+	const parsed = parseManagementCredentials(senderCredentials);
+	activeCommentCredentials = parsed;
+
+	const credentialsInput = document.querySelector("#comment-name");
+	if (credentialsInput) {
+		credentialsInput.value = `${parsed.username}:${parsed.password}`;
+	}
+	unlockEligiblePrivateComments();
+}
+
+function unlockEligiblePrivateComments() {
+	if (!activeCommentCredentials) {
+		return;
+	}
+	document.querySelectorAll(".comment--private").forEach((article) => {
+		const isParticipant =
+			article.dataset.commentAuthor === activeCommentCredentials.username ||
+			article.dataset.commentRecipient === activeCommentCredentials.username;
+		if (!isParticipant || article.dataset.privateUnlocking === "true" ||
+			!article.querySelector(".private-comment-cover")) {
+			return;
+		}
+
+		article.dataset.privateUnlocking = "true";
+		const unlock = window.COMMENTS_API_URL ? unlockAppsScriptComment : unlockLocalComment;
+		unlock(article.dataset.commentId,
+			`${activeCommentCredentials.username}:${activeCommentCredentials.password}`)
+			.then((result) => {
+				const cover = article.querySelector(".private-comment-cover");
+				if (!cover) {
+					return;
+				}
+				const paragraph = document.createElement("p");
+				paragraph.className = "comment-text";
+				paragraph.textContent = result.comment;
+				cover.replaceWith(paragraph);
+				renderCommentReplies(article.querySelector(".comment-replies"), result.replies || []);
+			})
+			.catch((error) => {
+				console.error("No se pudo desbloquear automáticamente el comentario privado", error);
+				const status = article.querySelector(".private-comment-status");
+				if (status) {
+					status.textContent = error.message || "No se pudo desbloquear automáticamente este comentario.";
+					status.classList.add("comment-status--error");
+				}
+			})
+			.finally(() => {
+				article.dataset.privateUnlocking = "false";
+			});
+	});
+}
+
+function renderCommentReplies(container, replies) {
+	container.replaceChildren();
+	container.replyData = replies;
+	const replyOption = container.closest(".comment")?.querySelector("[data-comment-reply-option]");
+	if (replyOption) {
+		replyOption.disabled = replies.length >= 5;
+	}
+	replies.forEach((reply) => {
+		const pin = document.createElement("button");
+		pin.className = "comment-reply-pin";
+		pin.type = "button";
+		pin.title = "Mostrar respuesta";
+		pin.setAttribute("aria-label", `Mostrar respuesta de ${reply.username}`);
+		pin.setAttribute("aria-expanded", "false");
+		const icon = document.createElement("img");
+		const iconNumber = Number.isInteger(reply.icon) && reply.icon >= 1 && reply.icon <= 5
+			? reply.icon
+			: 1;
+		icon.src = `icons/iconoresp${iconNumber}.svg`;
+		icon.alt = "";
+		icon.width = 28;
+		icon.height = 28;
+		const text = document.createElement("span");
+		text.className = "comment-reply-text";
+		text.hidden = true;
+		text.textContent = reply.text;
+		pin.style.setProperty("--reply-angle", `${Number(reply.angle) || 0}deg`);
+		pin.append(icon, text);
+
+		const setOpen = (open) => {
+			icon.hidden = open;
+			text.hidden = !open;
+			pin.setAttribute("aria-expanded", String(open));
+		};
+		pin.addEventListener("mouseenter", () => setOpen(true));
+		pin.addEventListener("mouseleave", () => {
+			if (pin.dataset.pinned !== "true") {
+				setOpen(false);
+			}
+		});
+		pin.addEventListener("focus", () => setOpen(true));
+		pin.addEventListener("blur", () => {
+			if (pin.dataset.pinned !== "true") {
+				setOpen(false);
+			}
+		});
+		pin.addEventListener("click", () => {
+			const pinned = pin.dataset.pinned !== "true";
+			pin.dataset.pinned = String(pinned);
+			setOpen(pinned);
+		});
+		container.append(pin);
+	});
+}
+
 function createCommentElement(comment) {
 	if (comment.deleted) {
 		const deleted = document.createElement("p");
@@ -207,6 +321,14 @@ function createCommentElement(comment) {
 
 	const article = document.createElement("article");
 	article.className = "comment";
+	article.dataset.commentId = comment.requestId || "";
+	article.dataset.commentAuthor = comment.name || "";
+	article.dataset.commentRecipient = comment.recipient || "";
+	const replies = document.createElement("div");
+	replies.className = "comment-replies";
+	replies.setAttribute("aria-label", "Respuestas");
+	renderCommentReplies(replies, comment.replies || []);
+	article.append(replies);
 
 	const header = document.createElement("div");
 	header.className = "comment-header";
@@ -263,19 +385,24 @@ function createCommentElement(comment) {
 			status.textContent = "comprovando...";
 			status.classList.remove("comment-status--error");
 			try {
-				const text = window.COMMENTS_API_URL
+				const unlocked = window.COMMENTS_API_URL
 					? await unlockAppsScriptComment(comment.requestId, credentials.value)
 					: await unlockLocalComment(comment.requestId, credentials.value);
 				const paragraph = document.createElement("p");
 				paragraph.className = "comment-text";
-				paragraph.textContent = text;
+				paragraph.textContent = unlocked.comment;
 				cover.replaceWith(paragraph);
+				renderCommentReplies(article.querySelector(".comment-replies"), unlocked.replies || []);
+				rememberCommentCredentials(credentials.value);
 			} catch (error) {
 				status.textContent = error.message || "no se va poder mostrar el comentario";
 				status.classList.add("comment-status--error");
 				unlock.disabled = false;
 			}
 		});
+		if (activeCommentCredentials) {
+			credentials.value = `${activeCommentCredentials.username}:${activeCommentCredentials.password}`;
+		}
 		cover.append(prompt, form);
 		article.append(cover);
 	} else {
@@ -302,7 +429,12 @@ function createCommentElement(comment) {
 	const deleteOption = document.createElement("button");
 	deleteOption.type = "button";
 	deleteOption.textContent = "eliminar";
-	menu.append(editOption, deleteOption);
+	const replyOption = document.createElement("button");
+	replyOption.type = "button";
+	replyOption.textContent = "responder";
+	replyOption.dataset.commentReplyOption = "true";
+	replyOption.disabled = (comment.replies || []).length >= 5;
+	menu.append(editOption, deleteOption, replyOption);
 	controls.append(menuToggle, menu);
 
 	const management = document.createElement("div");
@@ -348,6 +480,9 @@ function createCommentElement(comment) {
 			toggle.setAttribute("aria-pressed", String(showingCredentials));
 		});
 		field.append(credentials, toggle);
+		if (activeCommentCredentials) {
+			credentials.value = `${activeCommentCredentials.username}:${activeCommentCredentials.password}`;
+		}
 		return { field, input: credentials };
 	}
 
@@ -394,6 +529,7 @@ function createCommentElement(comment) {
 				status.classList.remove("comment-status--error");
 				try {
 					const result = await loadPrivateComment(comment.requestId, credentials.input.value);
+					rememberCommentCredentials(credentials.input.value);
 					editedText.value = result.comment;
 					editedText.required = true;
 					editedText.placeholder = "comentario";
@@ -421,8 +557,10 @@ function createCommentElement(comment) {
 				const result = await submitCommentManagement(
 					"edit", comment, credentials.input.value, editedText.value, "save"
 				);
+				rememberCommentCredentials(credentials.input.value);
 				commentListRevision += 1;
 				article.replaceWith(createCommentElement(result.comment));
+				unlockEligiblePrivateComments();
 			} catch (error) {
 				status.textContent = error.message || "no se pudo modificar el comentario. inténtalo de nuevo";
 				status.classList.add("comment-status--error");
@@ -459,8 +597,10 @@ function createCommentElement(comment) {
 				const result = await submitCommentManagement(
 					"delete", comment, credentials.input.value
 				);
+				rememberCommentCredentials(credentials.input.value);
 				commentListRevision += 1;
 				article.replaceWith(createCommentElement(result.comment));
+				unlockEligiblePrivateComments();
 			} catch (error) {
 				status.textContent = error.message || "no se pudo eliminar el comentario. inténtalo de nuevo";
 				status.classList.add("comment-status--error");
@@ -469,8 +609,100 @@ function createCommentElement(comment) {
 		});
 		showManagementForm(form, "delete");
 	});
+
+	replyOption.addEventListener("click", () => {
+		const form = document.createElement("form");
+		form.className = "comment-reply-form";
+		const status = createManagementStatus();
+		let credentials;
+		if (activeCommentCredentials) {
+			credentials = `${activeCommentCredentials.username}:${activeCommentCredentials.password}`;
+			const identity = document.createElement("p");
+			identity.className = "comment-reply-identity";
+			identity.textContent = `respondiendo como ${activeCommentCredentials.username}`;
+			form.append(identity);
+		} else {
+			const credentialsInput = document.createElement("input");
+			credentialsInput.type = "password";
+			credentialsInput.autocomplete = "current-password";
+			credentialsInput.placeholder = "usuario:contraseña";
+			credentialsInput.required = true;
+			form.append(credentialsInput);
+			credentials = credentialsInput;
+		}
+		const text = document.createElement("input");
+		text.type = "text";
+		text.name = "reply";
+		text.maxLength = 50;
+		text.placeholder = "respuesta (máximo 50 caracteres)";
+		text.required = true;
+		const buttons = document.createElement("div");
+		buttons.className = "comment-management-buttons";
+		const submit = document.createElement("button");
+		submit.type = "submit";
+		submit.textContent = "publicar respuesta";
+		const cancel = document.createElement("button");
+		cancel.type = "button";
+		cancel.className = "comment-cancel-button";
+		cancel.textContent = "cancelar";
+		buttons.append(submit, cancel);
+		cancel.addEventListener("click", () => {
+			management.hidden = true;
+		});
+		form.append(text, buttons, status);
+		form.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			submit.disabled = true;
+			status.textContent = "publicando respuesta...";
+			status.classList.remove("comment-status--error");
+			try {
+				const credentialsValue = typeof credentials === "string"
+					? credentials
+					: credentials.value;
+				const result = await submitCommentReply(comment, credentialsValue, text.value);
+				rememberCommentCredentials(credentialsValue);
+				comment.replies = [...(replies.replyData || comment.replies || []), result.reply];
+				renderCommentReplies(replies, comment.replies);
+				management.hidden = true;
+			} catch (error) {
+				status.textContent = error.message || "No se pudo publicar la respuesta.";
+				status.classList.add("comment-status--error");
+				submit.disabled = false;
+			}
+		});
+		showManagementForm(form, "reply");
+		if (typeof credentials !== "string") {
+			credentials.focus();
+		} else {
+			text.focus();
+		}
+	});
 	return article;
 }
+
+document.addEventListener("click", (event) => {
+	const target = event.target instanceof Element ? event.target : null;
+	const currentControls = target?.closest(".comment-controls");
+	document.querySelectorAll(".comment-controls").forEach((controls) => {
+		if (controls !== currentControls) {
+			const menu = controls.querySelector(".comment-menu");
+			const toggle = controls.querySelector(".comment-menu-toggle");
+			menu.hidden = true;
+			toggle.setAttribute("aria-expanded", "false");
+		}
+	});
+});
+
+document.addEventListener("keydown", (event) => {
+	if (event.key !== "Escape") {
+		return;
+	}
+	document.querySelectorAll(".comment-menu:not([hidden])").forEach((menu) => {
+		menu.hidden = true;
+		menu.parentElement.querySelector(".comment-menu-toggle")
+			.setAttribute("aria-expanded", "false");
+	});
+});
 
 let appsScriptCommentsSnapshot = null;
 
@@ -496,6 +728,7 @@ async function loadComments() {
 			return;
 		}
 		list.replaceChildren(...result.comments.map(createCommentElement));
+		unlockEligiblePrivateComments();
 	} catch (error) {
 		if (revision !== commentListRevision) {
 			return;
@@ -609,7 +842,7 @@ function submitAppsScriptRequest(fields, timeoutMs = 20000) {
 		form.submit();
 		form.remove();
 		if (
-			["edit", "delete"].includes(fields.action) &&
+			["edit", "delete", "reply"].includes(fields.action) &&
 			fields.operation !== "load"
 		) {
 			reconciliationTimer = window.setTimeout(reconcileManagementRequest, 2500);
@@ -622,14 +855,40 @@ function submitAppsScriptRequest(fields, timeoutMs = 20000) {
 			reconciling = true;
 			try {
 				const { comments } = await loadAppsScriptComments(5000);
-				const savedComment = comments.find((comment) =>
-					comment.requestId === fields.commentId &&
-					(fields.action === "delete"
-						? comment.deleted
-						: comment.edited &&
-							comment.editedAt !== fields.previousEditedAt &&
-							(comment.private || comment.comment === fields.comment))
-				);
+				if (fields.action === "reply") {
+					let savedReply = comments
+						.flatMap((comment) => comment.replies || [])
+						.find((reply) => reply.id === fields.replyId);
+					if (!savedReply && fields.commentPrivate === "true") {
+						try {
+							const unlocked = await submitAppsScriptRequest({
+								action: "unlock",
+								requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+								commentId: fields.commentId,
+								username: fields.username,
+								password: fields.password
+							}, 5000);
+							savedReply = (unlocked.replies || [])
+								.find((reply) => reply.id === fields.replyId);
+						} catch (error) {
+							console.error("No se pudo reconciliar la respuesta privada", error);
+						}
+					}
+					if (savedReply) {
+						finish(null, { ok: true, status: 201, reply: savedReply });
+						return;
+					}
+				}
+				const savedComment = fields.action === "reply"
+					? null
+					: comments.find((comment) =>
+						comment.requestId === fields.commentId &&
+						(fields.action === "delete"
+							? comment.deleted
+							: comment.edited &&
+								comment.editedAt !== fields.previousEditedAt &&
+								(comment.private || comment.comment === fields.comment))
+					);
 				if (savedComment) {
 					finish(null, { ok: true, status: 200, comment: savedComment });
 					return;
@@ -708,10 +967,76 @@ async function submitCommentManagement(action, comment, credentials, text = "", 
 
 async function loadPrivateComment(commentId, credentials) {
 	const { username, password } = parseManagementCredentials(credentials);
-	const text = window.COMMENTS_API_URL
+	const result = window.COMMENTS_API_URL
 		? await unlockAppsScriptComment(commentId, `${username}:${password}`)
 		: await unlockLocalComment(commentId, `${username}:${password}`);
-	return { comment: text };
+	return { comment: result.comment, replies: result.replies || [] };
+}
+
+async function submitCommentReply(comment, credentials, text) {
+	const { username, password } = parseManagementCredentials(credentials);
+	if (text.length > 50) {
+		throw new Error("La respuesta admite hasta 50 caracteres.");
+	}
+	const fields = {
+		action: "reply",
+		requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+		replyId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+		commentId: comment.requestId,
+		commentPrivate: comment.private ? "true" : "false",
+		username,
+		password,
+		reply: text
+	};
+	if (window.COMMENTS_API_URL) {
+		const api = await loadAppsScriptComments();
+		if ((api.apiVersion || 0) < 4) {
+			throw new Error("Las respuestas requieren la versión nueva de Apps Script. Publica la versión actualizada de Code.gs.");
+		}
+		return submitAppsScriptRequest(fields);
+	}
+
+	const response = await fetch("/api/comments/reply", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(fields)
+	});
+	const result = await response.json();
+	if (!response.ok) {
+		throw Object.assign(new Error(result.error || "No se pudo publicar la respuesta."), {
+			status: response.status
+		});
+	}
+	return result;
+}
+
+async function loginWithCredentials(credentials) {
+	const { username, password } = parseManagementCredentials(credentials);
+	if (window.COMMENTS_API_URL) {
+		const api = await loadAppsScriptComments();
+		if ((api.apiVersion || 0) < 3) {
+			throw new Error("El inicio de sesión requiere la versión nueva de Apps Script. Publica la versión actualizada de Code.gs.");
+		}
+		return submitAppsScriptRequest({
+			action: "login",
+			requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+			username,
+			password
+		});
+	}
+
+	const response = await fetch("/api/comments/login", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ credentials: `${username}:${password}` })
+	});
+	const result = await response.json();
+	if (!response.ok) {
+		throw Object.assign(new Error(result.error || "No se pudo iniciar sesión."), {
+			status: response.status
+		});
+	}
+	return result;
 }
 
 async function unlockLocalComment(requestId, credentials) {
@@ -726,7 +1051,7 @@ async function unlockLocalComment(requestId, credentials) {
 			status: response.status
 		});
 	}
-	return result.comment;
+	return { comment: result.comment, replies: result.replies || [] };
 }
 
 async function unlockAppsScriptComment(commentId, credentials) {
@@ -739,7 +1064,7 @@ async function unlockAppsScriptComment(commentId, credentials) {
 		username: separator === -1 ? credentials : credentials.slice(0, separator).trim(),
 		password: separator === -1 ? "" : credentials.slice(separator + 1)
 	});
-	return result.comment;
+	return { comment: result.comment, replies: result.replies || [] };
 }
 
 let commentListRevision = 0;
@@ -881,6 +1206,37 @@ const commentForm = document.querySelector("#comment-form");
 if (commentForm) {
 	const passwordInput = document.querySelector("#comment-name");
 	const togglePassword = document.querySelector("#toggle-password");
+	const loginButton = document.querySelector("#login-button");
+	const loginStatus = document.querySelector("#login-status");
+	window.addEventListener("pageshow", () => {
+		if (!activeCommentCredentials) {
+			passwordInput.value = "";
+		}
+	});
+	loginButton.addEventListener("click", async () => {
+		loginStatus.textContent = "comprobando credenciales...";
+		loginStatus.classList.remove("comment-status--error", "comment-status--success");
+		loginButton.disabled = true;
+		try {
+			const result = await loginWithCredentials(passwordInput.value);
+			rememberCommentCredentials(passwordInput.value);
+			loginStatus.textContent = `Sesión iniciada como ${result.username || activeCommentCredentials.username}.`;
+			loginStatus.classList.add("comment-status--success");
+			passwordInput.type = "password";
+			togglePassword.textContent = "Mostrar";
+			togglePassword.setAttribute("aria-pressed", "false");
+		} catch (error) {
+			loginStatus.textContent = error.message || "No se pudo iniciar sesión. Comprueba tus credenciales e inténtalo de nuevo.";
+			loginStatus.classList.add("comment-status--error");
+			console.error(error);
+		} finally {
+			loginButton.disabled = false;
+		}
+	});
+	passwordInput.addEventListener("input", () => {
+		loginStatus.textContent = "";
+		loginStatus.classList.remove("comment-status--error", "comment-status--success");
+	});
 	togglePassword.addEventListener("click", () => {
 		const showingPassword = passwordInput.type === "password";
 		passwordInput.type = showingPassword ? "text" : "password";
@@ -897,6 +1253,13 @@ if (commentForm) {
 	commentForm.addEventListener("submit", async (event) => {
 		event.preventDefault();
 		const formData = new FormData(commentForm);
+		const credentials = String(
+			formData.get("name") ||
+			(activeCommentCredentials
+				? `${activeCommentCredentials.username}:${activeCommentCredentials.password}`
+				: "")
+		);
+		const commentText = String(formData.get("comment"));
 		const status = document.querySelector("#comment-status");
 		const submitButton = commentForm.querySelector("button[type='submit']");
 		status.textContent = "Publicando...";
@@ -907,18 +1270,18 @@ if (commentForm) {
 			let comment;
 			if (window.COMMENTS_API_URL) {
 				comment = await submitAppsScriptComment(
-					String(formData.get("name")),
-					String(formData.get("comment"))
+					credentials,
+					commentText
 				);
 			} else {
 				const response = await fetch("/api/comments", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({
-						name: formData.get("name"),
-						comment: formData.get("comment"),
+						name: credentials,
+						comment: commentText,
 						requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-						recipientProvided: String(String(formData.get("name")).includes("@"))
+						recipientProvided: String(credentials.includes("@"))
 					})
 				});
 				const result = await response.json();
@@ -938,6 +1301,11 @@ if (commentForm) {
 			}
 			list.prepend(createCommentElement(comment));
 			commentForm.reset();
+			passwordInput.type = "password";
+			togglePassword.textContent = "Mostrar";
+			togglePassword.setAttribute("aria-pressed", "false");
+			rememberCommentCredentials(credentials);
+			unlockEligiblePrivateComments();
 			commentCount.textContent = "0/280";
 			status.textContent = "comentario publicado";
 		} catch (error) {
