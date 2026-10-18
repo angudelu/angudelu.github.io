@@ -17,8 +17,8 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .social-link--newgrounds { background: #111; color: #fff; }
 .social-link--newgrounds span { color: #ff8c00; }
 .social-link:focus-visible, .social-menu-toggle:focus-visible { outline: 3px solid #1673ff; outline-offset: 2px; }
-.explore-button { display: block; width: fit-content; margin: 16px auto 0; padding: 10px 24px; border-radius: 5px; background: #12345a; color: #fff; font-weight: bold; text-align: center; text-decoration: none; }
-.explore-button:hover { background: #0b2745; }
+.explore-button { display: block; width: min(100%, 560px); margin: 16px auto 0; padding: 10px 24px; border-radius: 5px; background: #3b82f6; color: #fff; font-weight: bold; text-align: center; text-decoration: none; }
+.explore-button:hover { background: #2563eb; }
 .explore-button:focus-visible { outline: 3px solid #1673ff; outline-offset: 2px; }
 @media (hover: hover) and (min-width: 1350px) {
 	.social-menu:hover .social-menu-links, .social-menu:focus-within .social-menu-links { visibility: visible; opacity: 1; transform: translateY(0); }
@@ -30,8 +30,8 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 26px; }
 .section { overflow: hidden; }
-.section h2 { margin: 0; padding: 14px 16px; background: var(--heading); color: #fff; font-size: 18px; font-weight: bold; }
-.section h2 a { color: inherit; text-decoration: none; }
+.section h2 { margin: 0; background: var(--heading); color: #fff; font-size: 18px; font-weight: bold; }
+.section h2 a { display: block; padding: 14px 16px; color: inherit; text-decoration: none; }
 .section h2 a:hover, .section h2 a:focus-visible { text-decoration: underline; }
 .section .grid-text { min-height: 90px; padding: 12px 16px 16px; background: var(--light); color: #292129; line-height: 1.5; }
 .post-date { display: block; margin-bottom: 8px; color: #666; font-size: 12px; line-height: 1.3; }
