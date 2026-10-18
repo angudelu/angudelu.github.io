@@ -255,7 +255,8 @@ async function submitAppsScriptComment(credentials, comment) {
 	const iframe = document.querySelector("#comment-transport");
 	const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 	const previousComments = appsScriptCommentsSnapshot || (await loadAppsScriptComments()).comments;
-	const username = credentials.slice(0, credentials.indexOf(":"));
+	const separator = credentials.indexOf(":");
+	const username = (separator === -1 ? credentials : credentials.slice(0, separator)).trim();
 
 	return new Promise((resolve, reject) => {
 		let settled = false;
@@ -356,7 +357,7 @@ async function submitAppsScriptComment(credentials, comment) {
 
 		for (const [name, value] of Object.entries({
 			username,
-			password: credentials.slice(credentials.indexOf(":") + 1),
+			password: separator === -1 ? "" : credentials.slice(separator + 1),
 			comment,
 			requestId
 		})) {
@@ -440,7 +441,7 @@ if (commentForm) {
 		} catch (error) {
 			if (error.status === 401) {
 				status.classList.add("comment-status--error");
-				status.textContent = "Tienes que escribirme a mí para conseguir un usuario y contraseña y así poder comentar.";
+				status.textContent = error.message || "Tienes que escribirme a mí para conseguir un usuario y contraseña y así poder comentar.";
 			} else {
 				status.classList.remove("comment-status--error");
 				status.textContent = error.message || "No se pudo guardar el comentario.";

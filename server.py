@@ -24,6 +24,11 @@ INVALID_CREDENTIALS_MESSAGE = (
     "Tienes que escribirme a mí para conseguir un usuario y contraseña "
     "y así poder comentar."
 )
+MISSING_PASSWORD_MESSAGE = (
+    'tienes que introducir el usuario y contraseña en la misma caja de esta forma: '
+    '"usuario:contraseña"'
+)
+INCORRECT_PASSWORD_MESSAGE = "usuario existente, contraseña incorrecta"
 
 
 class SiteHandler(SimpleHTTPRequestHandler):
@@ -72,8 +77,8 @@ class SiteHandler(SimpleHTTPRequestHandler):
 
     def verify_credentials(self, credentials):
         username, separator, password = credentials.partition(":")
-        if not separator or not username or not password:
-            return None
+        if not separator:
+            username = credentials
 
         try:
             with users_lock:
@@ -92,13 +97,17 @@ class SiteHandler(SimpleHTTPRequestHandler):
 
         entry = entries.get(username)
         if entry is None:
-            return None
+            return None, INVALID_CREDENTIALS_MESSAGE
+        if not separator or not password:
+            return None, MISSING_PASSWORD_MESSAGE
 
         salt, expected_hash = entry
         actual_hash = hashlib.pbkdf2_hmac(
             "sha256", password.encode("utf-8"), salt, PASSWORD_HASH_ITERATIONS
         ).hex()
-        return username if hmac.compare_digest(actual_hash, expected_hash) else None
+        if not hmac.compare_digest(actual_hash, expected_hash):
+            return None, INCORRECT_PASSWORD_MESSAGE
+        return username, None
 
     def do_POST(self):
         if urlsplit(self.path).path != "/api/comments":
@@ -141,7 +150,7 @@ class SiteHandler(SimpleHTTPRequestHandler):
             return
 
         try:
-            username = self.verify_credentials(credentials)
+            username, authentication_error = self.verify_credentials(credentials)
         except (OSError, ValueError) as error:
             self.log_error("Could not verify comment credentials: %s", error)
             self.send_json(
@@ -149,8 +158,8 @@ class SiteHandler(SimpleHTTPRequestHandler):
                 {"error": "No se pudo verificar el usuario. Inténtalo más tarde."},
             )
             return
-        if username is None:
-            self.send_json(HTTPStatus.UNAUTHORIZED, {"error": INVALID_CREDENTIALS_MESSAGE})
+        if authentication_error:
+            self.send_json(HTTPStatus.UNAUTHORIZED, {"error": authentication_error})
             return
 
         if not comment_text:

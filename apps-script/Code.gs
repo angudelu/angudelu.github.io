@@ -171,9 +171,9 @@ function doPost(event) {
   const username = String(parameters.username || "").trim();
   const password = String(parameters.password || "");
   const comment = String(parameters.comment || "").trim();
-  let isAuthorized;
+  let authentication;
   try {
-    isAuthorized = verifyUser_(username, password);
+    authentication = verifyUser_(username, password);
   } catch (error) {
     console.error(error);
     return postMessageResponse_({
@@ -183,12 +183,12 @@ function doPost(event) {
       error: "No se pudo verificar el usuario. Inténtalo más tarde."
     });
   }
-  if (!isAuthorized) {
+  if (!authentication.valid) {
     return postMessageResponse_({
       requestId: requestId,
       ok: false,
       status: 401,
-      error: "Tienes que escribirme a mí para conseguir un usuario y contraseña y así poder comentar."
+      error: authentication.error
     });
   }
 
@@ -315,10 +315,6 @@ function readComments_() {
 }
 
 function verifyUser_(username, password) {
-  if (!username || username.length > MAX_USERNAME_LENGTH || !password) {
-    return false;
-  }
-
   const properties = PropertiesService.getScriptProperties();
   const usersJson = properties.getProperty(COMMENTS_USERS_PROPERTY);
   const pepper = properties.getProperty(COMMENTS_PEPPER_PROPERTY);
@@ -329,12 +325,27 @@ function verifyUser_(username, password) {
   const users = JSON.parse(usersJson);
   const user = users[username];
   if (!user) {
-    return false;
+    return {
+      valid: false,
+      error: "Tienes que escribirme a mí para conseguir un usuario y contraseña y así poder comentar."
+    };
   }
-  return constantTimeEquals_(
+  if (!username || username.length > MAX_USERNAME_LENGTH || !password) {
+    return {
+      valid: false,
+      error: 'tienes que introducir el usuario y contraseña en la misma caja de esta forma: "usuario:contraseña"'
+    };
+  }
+  if (!constantTimeEquals_(
     hashPassword_(username, password, user.salt, pepper),
     user.hash
-  );
+  )) {
+    return {
+      valid: false,
+      error: "usuario existente, contraseña incorrecta"
+    };
+  }
+  return { valid: true, error: "" };
 }
 
 function hashPassword_(username, password, salt, pepper) {
