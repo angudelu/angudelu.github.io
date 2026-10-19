@@ -16,6 +16,7 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parent
 COMMENTS_FILE = ROOT / "comentarios.txt"
 USERS_FILE = ROOT / "usuarios.txt"
+POST_VOTES_FILE = ROOT / "post-votes.json"
 MAX_REQUEST_BYTES = 4096
 MAX_CREDENTIALS_LENGTH = 160
 MAX_USERNAME_LENGTH = 60
@@ -24,6 +25,7 @@ MAX_COMMENT_LINE_BREAKS = 3
 PASSWORD_HASH_ITERATIONS = 600_000
 comments_lock = threading.Lock()
 users_lock = threading.Lock()
+post_votes_lock = threading.Lock()
 MAX_COMMENTS_PER_DAY = 5
 INVALID_CREDENTIALS_MESSAGE = (
     "Tienes que escribirme a mí para conseguir un usuario y contraseña "
@@ -60,6 +62,89 @@ def count_line_breaks(text):
     return len(re.findall(r"\r\n|\r|\n", text))
 
 
+def read_post_votes_unlocked():
+    if not POST_VOTES_FILE.exists():
+        return []
+    with POST_VOTES_FILE.open("r", encoding="utf-8") as file:
+        votes = json.load(file)
+    if not isinstance(votes, list) or any(
+        not isinstance(vote, dict)
+        or not isinstance(vote.get("postId"), str)
+        or not isinstance(vote.get("username"), str)
+        or not isinstance(vote.get("author"), str)
+        or type(vote.get("vote")) is not int
+        or vote["vote"] not in (-1, 1)
+        for vote in votes
+    ):
+        raise ValueError("Invalid saved post votes")
+    return votes
+
+
+def load_post_votes():
+    with post_votes_lock:
+        return read_post_votes_unlocked()
+
+
+def calculate_account_points(records, username, post_votes=None):
+    if post_votes is None:
+        post_votes = load_post_votes()
+    replies_received = 0
+    comment_cost = 0
+    for record in records:
+        if record.get("name") != username or record.get("private") or record.get("deleted"):
+            continue
+        edited_at = record.get("editedAt") or record.get("edited")
+        comment_cost += 1.5 if edited_at else 1
+        replies_received += sum(
+            reply["username"] != username
+            for reply in validate_comment_replies(record.get("replies", []))
+        )
+    vote_points = sum(
+        5 if vote["vote"] == 1 else -2
+        for vote in post_votes
+        if vote["author"] == username
+    )
+    return round(25 + replies_received - comment_cost + vote_points, 2)
+
+
+def find_color_post_author(post_id):
+    match = re.fullmatch(
+        r"(magenta|amarillo|cian|negro):(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}):(\d{1,6})",
+        post_id,
+    )
+    if not match:
+        raise ValueError("Identificador de publicación no válido.")
+    color, date_time, requested_occurrence = match.groups()
+    requested_occurrence = int(requested_occurrence)
+    post_file = ROOT / color / f"texto-{color}.txt"
+    contents = post_file.read_text(encoding="utf-8")
+    entry_pattern = re.compile(
+        r"^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?\|", re.MULTILINE
+    )
+    entries = list(entry_pattern.finditer(contents))
+    occurrence = 0
+    for index, entry in enumerate(entries):
+        normalized_date, hour, minute = entry.group(1), entry.group(2) or "00", entry.group(3) or "00"
+        if f"{normalized_date}T{hour}:{minute}" != date_time:
+            continue
+        if occurrence != requested_occurrence:
+            occurrence += 1
+            continue
+        content_end = entries[index + 1].start() if index + 1 < len(entries) else len(contents)
+        body = contents[entry.end():content_end].strip()
+        author = re.match(r"@([^|\r\n]{1,60})\|", body)
+        return author.group(1).strip() if author else ""
+    raise ValueError("No se encontró la publicación indicada.")
+
+
+def summarize_post_votes(post_votes):
+    summaries = {}
+    for vote in post_votes:
+        summary = summaries.setdefault(vote["postId"], {"likes": 0, "dislikes": 0})
+        summary["likes" if vote["vote"] == 1 else "dislikes"] += 1
+    return summaries
+
+
 class SiteHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -79,8 +164,19 @@ class SiteHandler(SimpleHTTPRequestHandler):
         if request_path.rsplit("/", 1)[-1].casefold() in {
             USERS_FILE.name.casefold(),
             COMMENTS_FILE.name.casefold(),
+            POST_VOTES_FILE.name.casefold(),
         }:
             self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        if request_path == "/api/posts/votes":
+            try:
+                self.send_json(HTTPStatus.OK, {"votes": summarize_post_votes(load_post_votes())})
+            except (OSError, ValueError, json.JSONDecodeError) as error:
+                self.log_error("Could not read post votes: %s", error)
+                self.send_json(
+                    HTTPStatus.INTERNAL_SERVER_ERROR,
+                    {"error": "No se pudieron leer los votos de las publicaciones."},
+                )
             return
         if request_path == "/api/comments":
             try:
@@ -111,22 +207,14 @@ class SiteHandler(SimpleHTTPRequestHandler):
                             f"Invalid comment data on line {line_number}"
                         ) from error
 
-            points = {}
-            for record in records:
-                username = record.get("name", "")
-                if not username or record.get("private") or record.get("deleted"):
-                    continue
-                total = points.setdefault(username, {"replies": 0, "comments": 0})
-                edited_at = record.get("editedAt") or record.get("edited")
-                total["comments"] += 0.5 if edited_at else 1
-                total["replies"] += sum(
-                    reply["username"] != username
-                    for reply in validate_comment_replies(record.get("replies", []))
-                )
+            post_votes = load_post_votes()
+            usernames = {
+                record.get("name", "") for record in records
+            } | {vote["author"] for vote in post_votes}
             author_points = {
-                username: round(100 + total["replies"] / total["comments"], 2)
-                for username, total in points.items()
-                if total["comments"]
+                username: calculate_account_points(records, username, post_votes)
+                for username in usernames
+                if username
             }
 
             for saved_comment in records:
@@ -150,10 +238,10 @@ class SiteHandler(SimpleHTTPRequestHandler):
                     "requestId": saved_comment["requestId"],
                     "deleted": bool(saved_comment.get("deleted")),
                     "private": is_private,
-                    "authorPoints": author_points.get(saved_comment.get("name"), 100),
+                    "name": saved_comment["name"],
+                    "authorPoints": author_points.get(saved_comment.get("name"), 25),
                 }
                 if is_private or not saved_comment.get("deleted"):
-                    comment["name"] = saved_comment["name"]
                     comment["edited"] = bool(edited_at)
                     comment["editedAt"] = edited_at
                     if is_private:
@@ -165,6 +253,19 @@ class SiteHandler(SimpleHTTPRequestHandler):
                     )
                 comments.append(comment)
         return list(reversed(comments))
+
+    def get_account_points(self, username):
+        with comments_lock:
+            if COMMENTS_FILE.exists():
+                with COMMENTS_FILE.open("r", encoding="utf-8") as file:
+                    records = [
+                        json.loads(line)
+                        for line in file
+                        if line.strip() and not line.lstrip().startswith("#")
+                    ]
+            else:
+                records = []
+        return calculate_account_points(records, username)
 
     def load_users(self):
         with users_lock:
@@ -207,6 +308,7 @@ class SiteHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         request_path = urlsplit(self.path).path
         if request_path not in {
+            "/api/posts/vote",
             "/api/comments",
             "/api/comments/login",
             "/api/comments/list",
@@ -241,6 +343,9 @@ class SiteHandler(SimpleHTTPRequestHandler):
             self.send_json(HTTPStatus.BAD_REQUEST, {"error": "El comentario no es válido."})
             return
 
+        if request_path == "/api/posts/vote":
+            self.vote_on_post(payload)
+            return
         if request_path == "/api/comments/login":
             credentials = payload.get("credentials")
             if not isinstance(credentials, str) or len(credentials) > MAX_CREDENTIALS_LENGTH:
@@ -288,9 +393,13 @@ class SiteHandler(SimpleHTTPRequestHandler):
                 self.send_json(HTTPStatus.UNAUTHORIZED, {"error": authentication_error})
                 return
             try:
+                comments = self.read_comment_list(verified_username)
                 self.send_json(
                     HTTPStatus.OK,
-                    {"comments": self.read_comment_list(verified_username)},
+                    {
+                        "comments": comments,
+                        "accountPoints": self.get_account_points(verified_username),
+                    },
                 )
             except (OSError, ValueError, KeyError) as error:
                 self.log_error("Could not read authenticated comments: %s", error)
@@ -381,15 +490,27 @@ class SiteHandler(SimpleHTTPRequestHandler):
             with comments_lock:
                 today = datetime.now().astimezone().date()
                 comments_today = 0
+                records = []
                 if COMMENTS_FILE.exists():
                     with COMMENTS_FILE.open("r", encoding="utf-8") as file:
                         for line in file:
                             if not line.strip() or line.lstrip().startswith("#"):
                                 continue
                             saved_comment = json.loads(line)
+                            records.append(saved_comment)
                             saved_date = datetime.fromisoformat(saved_comment["date"]).date()
                             if saved_comment["name"] == username and saved_date == today:
                                 comments_today += 1
+                points = calculate_account_points(records, username)
+                if points < 1:
+                    self.send_json(
+                        HTTPStatus.FORBIDDEN,
+                        {
+                            "error": "No tienes puntos suficientes para comentar. Borra uno de tus comentarios para recuperar puntos.",
+                            "accountPoints": points,
+                        },
+                    )
+                    return
                 if comments_today >= MAX_COMMENTS_PER_DAY:
                     self.send_json(
                         HTTPStatus.TOO_MANY_REQUESTS,
@@ -417,6 +538,102 @@ class SiteHandler(SimpleHTTPRequestHandler):
         else:
             public_comment["comment"] = comment_text
         self.send_json(HTTPStatus.CREATED, {"comment": public_comment})
+
+    def vote_on_post(self, payload):
+        username = payload.get("username")
+        password = payload.get("password")
+        post_id = payload.get("postId")
+        vote_value = payload.get("vote")
+        if (
+            not isinstance(username, str)
+            or not isinstance(password, str)
+            or not isinstance(post_id, str)
+            or type(vote_value) is not int
+            or vote_value not in (-1, 1)
+            or len(username) + len(password) + 1 > MAX_CREDENTIALS_LENGTH
+        ):
+            self.send_json(HTTPStatus.BAD_REQUEST, {"error": MISSING_PASSWORD_MESSAGE})
+            return
+        username = username.strip()
+        try:
+            verified_username, authentication_error = self.verify_credentials(
+                f"{username}:{password}"
+            )
+        except (OSError, ValueError) as error:
+            self.log_error("Could not verify post vote credentials: %s", error)
+            self.send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {"error": "No se pudo verificar el usuario. Inténtalo más tarde."},
+            )
+            return
+        if authentication_error:
+            self.send_json(HTTPStatus.UNAUTHORIZED, {"error": authentication_error})
+            return
+
+        try:
+            author = find_color_post_author(post_id)
+            if author and author not in self.load_users():
+                self.send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "La cuenta asociada a esta publicación no existe."},
+                )
+                return
+            with post_votes_lock:
+                votes = []
+                if POST_VOTES_FILE.exists():
+                    votes = read_post_votes_unlocked()
+                existing = next(
+                    (
+                        item for item in votes
+                        if item.get("postId") == post_id and item.get("username") == verified_username
+                    ),
+                    None,
+                )
+                if existing:
+                    existing["vote"] = vote_value
+                    existing["author"] = author
+                else:
+                    votes.append({
+                        "postId": post_id,
+                        "username": verified_username,
+                        "author": author,
+                        "vote": vote_value,
+                    })
+                temporary_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        mode="w",
+                        encoding="utf-8",
+                        dir=POST_VOTES_FILE.parent,
+                        prefix=POST_VOTES_FILE.name + ".",
+                        suffix=".tmp",
+                        delete=False,
+                    ) as temporary:
+                        json.dump(votes, temporary, ensure_ascii=False)
+                        temporary_path = Path(temporary.name)
+                    os.replace(temporary_path, POST_VOTES_FILE)
+                finally:
+                    if temporary_path and temporary_path.exists():
+                        temporary_path.unlink()
+                summary = summarize_post_votes(votes).get(
+                    post_id, {"likes": 0, "dislikes": 0}
+                )
+            self.send_json(
+                HTTPStatus.OK,
+                {
+                    "votes": summary,
+                    "accountPoints": self.get_account_points(verified_username),
+                    "postAuthorPoints": self.get_account_points(author) if author else None,
+                    "message": "Voto guardado. No se han modificado puntos."
+                    if not author else "Voto guardado.",
+                },
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            self.log_error("Could not save post vote: %s", error)
+            self.send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {"error": "No se pudo guardar el voto. Inténtalo más tarde."},
+            )
 
     def unlock_comment(self, payload):
         credentials = payload.get("credentials")

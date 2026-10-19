@@ -29,7 +29,7 @@ El comentario solo aparecerá en la lista cuando la persona haya iniciado sesió
 
 ## Editar o eliminar un comentario
 
-Pulsa el icono de tres puntos del comentario y elige **Editar** o **Eliminar**. Debes iniciar sesión primero y solo puedes modificar tus propios comentarios; en los comentarios de otras personas solo aparece **Responder**. Al editar, el texto actualizado conserva la fecha original y muestra cuándo se editó por última vez. Los comentarios eliminados se sustituyen por el texto *comentario eliminado* en su posición.
+Pulsa el icono de tres puntos del comentario y elige **Editar** o **Eliminar**. Debes iniciar sesión primero y solo puedes modificar tus propios comentarios; en los comentarios de otras personas solo aparece **Responder**. Al editar, el texto actualizado conserva la fecha original y muestra cuándo se editó por última vez. Los comentarios eliminados se sustituyen por *comentario borrado por 'usuario'* en su posición.
 
 Si el comentario es privado, solo el autor puede editarlo; seguirá sin aparecer a otras cuentas después de guardarlo.
 
@@ -37,7 +37,7 @@ Si el comentario es privado, solo el autor puede editarlo; seguirá sin aparecer
 
 Pulsa los tres puntos y elige **Responder** en tus comentarios, o **Responder** directamente en comentarios de otras personas. Debes iniciar sesión primero. Cada usuario puede dejar **una respuesta por comentario**; cada comentario admite hasta **5 respuestas** en total y cada respuesta hasta **50 caracteres**. El contador muestra los caracteres escritos. No cuentan para el límite diario de comentarios. Se muestran como un icono en la parte superior derecha; al pasar el cursor o pulsarlo aparece el texto y el autor. Si `icons/` contiene un SVG con el mismo nombre que el usuario, se usa como icono y avatar; si no, se muestra un insecto. Las respuestas a comentarios públicos son visibles para todos; las respuestas a comentarios privados solo pueden publicarlas y leerlas el remitente o el destinatario.
 
-Los puntos de cada cuenta parten de **100**. Se calculan como `100 + r/c`, donde `r` es el número de respuestas de otras personas a sus comentarios públicos y `c` es el número de comentarios públicos no eliminados (cada comentario editado cuenta como medio). Al pasar el cursor por uno de sus comentarios se muestra su puntuación sin desplazar el texto.
+Los puntos de cada cuenta parten de **25**. El saldo se calcula como `25 + r - c + 5l - 2d`: `r` cuenta las respuestas de otras personas a sus comentarios públicos no eliminados; `c` resta 1 punto por cada comentario público activo (1,5 si está editado); `l` es el número neto de likes recibidos en publicaciones asociadas a esa cuenta y `d` el número neto de dislikes. Cada cuenta puede emitir un voto por publicación y cambiarlo; repetir el mismo voto no vuelve a sumar puntos. Los votos a publicaciones anónimas se cuentan, pero no cambian el saldo de nadie. Publicar un comentario público cuesta 1 punto; editarlo por primera vez resta 0,5, y borrarlo recupera su coste menos los puntos de las respuestas recibidas. Las acciones privadas no afectan al saldo. No se puede publicar si el saldo es inferior a 1; al borrar comentarios se recuperan puntos. El menú indica el cambio de puntos previsto para editar o borrar y el formulario indica el coste de publicar. Al pasar el cursor por uno de los comentarios se muestra la puntuación sin desplazar el texto.
 
 En la página principal se muestran solo los comentarios de hoy. Pulsa **Ver comentarios más antiguos**, debajo de la lista, para abrir el historial.
 
@@ -54,18 +54,21 @@ En la página principal se muestran solo los comentarios de hoy. Pulsa **Ver com
 - **Has alcanzado el límite de 10 comentarios por día**: espera al siguiente día para volver a comentar.
 - **El comentario admite hasta 280 caracteres**: acorta el texto hasta el máximo indicado por el contador.
 - **El comentario admite como máximo 3 saltos de línea**: reduce los saltos de línea a tres o menos.
+- **No tienes puntos suficientes para comentar**: borra uno de tus comentarios para recuperar los puntos correspondientes.
 
 Si no tienes una cuenta, contacta con la persona que administra la página para solicitar acceso.
 
 ## Publicaciones del grid
 
-Los archivos `texto-magenta.txt`, `texto-amarillo.txt`, `texto-cian.txt` y `texto-negro.txt` aceptan publicaciones con este formato:
+Cada color tiene su carpeta con el texto y su propio `index.html` de historial: `magenta/`, `amarillo/`, `cian/` y `negro/`. Los archivos `texto-<color>.txt` aceptan publicaciones con este formato:
 
 ```text
-AAAA-MM-DD HH:mm|texto|ruta-de-imagen|enlace-de-la-imagen
+AAAA-MM-DD HH:mm|@usuario|texto|ruta-de-imagen|enlace-de-la-imagen
 ```
 
-La fecha y la hora van al principio de cada post. La hora usa el formato de 24 horas y la zona horaria local de la persona que visita la página. Así puedes añadir varias publicaciones en un mismo día; en el grid se muestra la más reciente cuya fecha y hora ya hayan llegado. Los historiales muestran todas las publicaciones anteriores ordenadas de más reciente a más antigua. La fecha visible en publicaciones y comentarios muestra «hace unos minutos» durante la primera hora, solo la hora durante el primer día y la fecha y hora después. La imagen, el enlace y la hora son opcionales. Si omites la hora se considera `00:00`, por compatibilidad con entradas que solo contienen la fecha.
+La fecha y la hora van al principio de cada post. `@usuario|` es un campo opcional inmediatamente después de la fecha; si se omite, la publicación aparece como «anónimo». La hora usa el formato de 24 horas y la zona horaria local de la persona que visita la página. Así puedes añadir varias publicaciones en un mismo día; en el grid se muestra la más reciente cuya fecha y hora ya hayan llegado. Los historiales muestran todas las publicaciones anteriores ordenadas de más reciente a más antigua. La fecha visible en publicaciones y comentarios muestra «hace unos minutos» durante la primera hora, solo la hora durante el primer día y la fecha y hora después. La imagen, el enlace y la hora son opcionales. Si omites la hora se considera `00:00`, por compatibilidad con entradas que solo contienen la fecha.
+
+Las publicaciones muestran botones de «Me gusta» y «No me gusta». Para votar hay que iniciar sesión. Cada cuenta puede tener un voto por publicación y cambiarlo posteriormente; repetir el mismo voto no suma puntos de nuevo. Un like añade 5 puntos a la cuenta asociada a la publicación y un dislike resta 2. Si una publicación es anónima, los votos se cuentan, pero no cambian puntos. El total de votos es visible para todos.
 
 El texto puede ocupar varias líneas y admite formato sencillo: escribe `\n` para insertar un salto de línea o pon una parte entre guiones bajos para mostrarla en **negrita**. Se pueden combinar ambas cosas. Si añades imagen y enlace, sepáralos del texto con `|`; pon esos campos al final, cada uno separado con `|`.
 

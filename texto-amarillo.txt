@@ -1,1 +1,0 @@
-# Formato: AAAA-MM-DD HH:mm|texto|ruta-de-imagen|enlace-de-la-imagen (hora, imagen y enlace opcionales; sin hora se usa 00:00)

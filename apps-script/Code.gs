@@ -1,4 +1,5 @@
 const COMMENTS_SHEET_NAME = "Comentarios";
+const POST_VOTES_SHEET_NAME = "Votos publicaciones";
 const COMMENTS_SPREADSHEET_PROPERTY = "COMMENTS_SPREADSHEET_ID";
 const COMMENTS_USERS_PROPERTY = "COMMENTS_USERS";
 const COMMENTS_PEPPER_PROPERTY = "COMMENTS_PEPPER";
@@ -39,6 +40,13 @@ function setup() {
     "fecha", "usuario", "comentario", "id_solicitud", "destinatario", "privado",
     "editado", "eliminado", "respuestas"
   ]]);
+  let votesSheet = spreadsheet.getSheetByName(POST_VOTES_SHEET_NAME);
+  if (!votesSheet) {
+    votesSheet = spreadsheet.insertSheet(POST_VOTES_SHEET_NAME);
+  }
+  votesSheet.getRange(1, 1, 1, 4).setValues([[
+    "id_publicacion", "usuario", "autor", "voto"
+  ]]);
 
   if (!properties.getProperty(COMMENTS_USERS_PROPERTY)) {
     const initialUsersJson = properties.getProperty(INITIAL_USERS_PROPERTY);
@@ -70,7 +78,7 @@ function setup() {
       users[username] = {
         salt: salt,
         hash: hashPassword_(username, password, salt, pepper),
-        points: 100
+        points: 25
       };
     });
 
@@ -130,7 +138,7 @@ function addUsers() {
     users[username] = {
       salt: salt,
       hash: hashPassword_(username, usersToAdd[username], salt, pepper),
-      points: 100
+      points: 25
     };
   });
 
@@ -148,9 +156,17 @@ function doGet(event) {
   }
 
   try {
+    if (event.parameter.action === "postVotes") {
+      const body = callback + "(" + JSON.stringify({
+        apiVersion: 8,
+        votes: summarizePostVotes_(readPostVotes_())
+      }) + ");";
+      return ContentService.createTextOutput(body)
+        .setMimeType(ContentService.MimeType.JAVASCRIPT);
+    }
     const comments = readComments_();
     const body = callback + "(" + JSON.stringify({
-      apiVersion: 6,
+      apiVersion: 8,
       comments: comments
     }) + ");";
     return ContentService.createTextOutput(body)
@@ -182,6 +198,9 @@ function doPost(event) {
   }
   if (parameters.action === "reply") {
     return addCommentReply_(parameters, requestId);
+  }
+  if (parameters.action === "postVote") {
+    return voteOnPost_(parameters, requestId);
   }
   if (parameters.action === "login") {
     return login_(parameters, requestId);
@@ -273,25 +292,28 @@ function doPost(event) {
     const lock = LockService.getScriptLock();
     lock.waitLock(10000);
     let dailyLimitReached = false;
+    let pointsInsufficient = false;
     try {
       const timezone = Session.getScriptTimeZone();
       const today = Utilities.formatDate(new Date(), timezone, "yyyy-MM-dd");
       const lastRow = sheet.getLastRow();
-      let commentsToday = 0;
-      if (lastRow >= 2) {
-        commentsToday = sheet.getRange(2, 1, lastRow - 1, 3).getValues()
-          .filter((row) => {
-            if (!row[0] || String(row[1]) !== username) {
-              return false;
-            }
-            const savedDate = row[0] instanceof Date
-              ? Utilities.formatDate(row[0], timezone, "yyyy-MM-dd")
-              : String(row[0]).slice(0, 10);
-            return savedDate === today;
-          }).length;
-      }
+      const rows = lastRow >= 2
+        ? sheet.getRange(2, 1, lastRow - 1, 9).getValues()
+        : [];
+      const currentPoints = updateAccountPoints_(rows)[username] || 0;
+      const commentsToday = rows.filter((row) => {
+        if (!row[0] || String(row[1]) !== username) {
+          return false;
+        }
+        const savedDate = row[0] instanceof Date
+          ? Utilities.formatDate(row[0], timezone, "yyyy-MM-dd")
+          : String(row[0]).slice(0, 10);
+        return savedDate === today;
+      }).length;
 
-      if (commentsToday >= MAX_COMMENTS_PER_DAY) {
+      if (currentPoints < 1) {
+        pointsInsufficient = true;
+      } else if (commentsToday >= MAX_COMMENTS_PER_DAY) {
         dailyLimitReached = true;
       } else {
         sheet.appendRow([
@@ -310,6 +332,14 @@ function doPost(event) {
       lock.releaseLock();
     }
 
+    if (pointsInsufficient) {
+      return postMessageResponse_({
+        requestId: requestId,
+        ok: false,
+        status: 403,
+        error: "No tienes puntos suficientes para comentar. Borra uno de tus comentarios para recuperar puntos."
+      });
+    }
     if (dailyLimitReached) {
       return postMessageResponse_({
         requestId: requestId,
@@ -387,11 +417,13 @@ function listComments_(parameters, requestId) {
         error: authentication.error
       });
     }
+    const comments = readComments_(username);
     return postMessageResponse_({
       requestId: requestId,
       ok: true,
       status: 200,
-      comments: readComments_(username)
+      comments: comments,
+      accountPoints: getAccountPoints_(username)
     });
   } catch (error) {
     console.error(error);
@@ -443,7 +475,9 @@ function readComments_(viewerUsername) {
         edited: Boolean(row[6]),
         editedAt: row[6] instanceof Date ? row[6].toISOString() : String(row[6] || ""),
         deleted: row[7] === true,
-        authorPoints: pointsByUsername[String(row[1])] || 100
+        authorPoints: Object.prototype.hasOwnProperty.call(pointsByUsername, String(row[1]))
+          ? pointsByUsername[String(row[1])]
+          : 25
       };
       if (!comment.deleted) {
         comment.comment = String(row[2]);
@@ -453,7 +487,187 @@ function readComments_(viewerUsername) {
     });
 }
 
-function updateAccountPoints_(rows) {
+function getPostVotesSheet_() {
+  const spreadsheetId = PropertiesService.getScriptProperties()
+    .getProperty(COMMENTS_SPREADSHEET_PROPERTY);
+  if (!spreadsheetId) {
+    throw new Error("Ejecuta setup() antes de guardar votos.");
+  }
+  const sheet = SpreadsheetApp.openById(spreadsheetId)
+    .getSheetByName(POST_VOTES_SHEET_NAME);
+  if (!sheet) {
+    throw new Error("No existe la hoja de votos. Ejecuta setup() de nuevo.");
+  }
+  return sheet;
+}
+
+function readPostVotes_() {
+  const sheet = getPostVotesSheet_();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return [];
+  }
+  return sheet.getRange(2, 1, lastRow - 1, 4).getValues()
+    .filter((row) => row[0] && row[1])
+    .map((row) => ({
+      postId: String(row[0]),
+      username: String(row[1]),
+      author: String(row[2] || ""),
+      vote: Number(row[3])
+    }));
+}
+
+function summarizePostVotes_(votes) {
+  const summaries = {};
+  votes.forEach((vote) => {
+    if (!Object.prototype.hasOwnProperty.call(summaries, vote.postId)) {
+      summaries[vote.postId] = { likes: 0, dislikes: 0 };
+    }
+    summaries[vote.postId][vote.vote === 1 ? "likes" : "dislikes"] += 1;
+  });
+  return summaries;
+}
+
+function getPostAuthor_(postId) {
+  const match = /^(magenta|amarillo|cian|negro):(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}):(\d{1,6})$/.exec(postId);
+  if (!match) {
+    throw new Error("Identificador de publicación no válido.");
+  }
+  const color = match[1];
+  const expectedDateTime = match[2];
+  const requestedOccurrence = Number(match[3]);
+  const origin = PropertiesService.getScriptProperties().getProperty("ALLOWED_ORIGIN");
+  const response = UrlFetchApp.fetch(
+    origin + "/" + color + "/texto-" + color + ".txt",
+    { muteHttpExceptions: true }
+  );
+  if (response.getResponseCode() !== 200) {
+    throw new Error("No se pudo validar la publicación indicada.");
+  }
+  const contents = response.getContentText();
+  const pattern = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?\|/gm;
+  const entries = [];
+  let entry;
+  while ((entry = pattern.exec(contents)) !== null) {
+    entries.push(entry);
+  }
+  let occurrence = 0;
+  for (let index = 0; index < entries.length; index += 1) {
+    const current = entries[index];
+    const dateTime = current[1] + "T" + (current[2] || "00") + ":" + (current[3] || "00");
+    if (dateTime !== expectedDateTime) {
+      continue;
+    }
+    if (occurrence !== requestedOccurrence) {
+      occurrence += 1;
+      continue;
+    }
+    const end = index + 1 < entries.length ? entries[index + 1].index : contents.length;
+    const body = contents.slice(current.index + current[0].length, end).trim();
+    const author = /^@([^|\r\n]{1,60})\|/.exec(body);
+    return author ? author[1].trim() : "";
+  }
+  throw new Error("No se encontró la publicación indicada.");
+}
+
+function voteOnPost_(parameters, requestId) {
+  const username = String(parameters.username || "").trim();
+  const password = String(parameters.password || "");
+  const postId = String(parameters.postId || "");
+  const vote = Number(parameters.vote);
+  if (!postId || !Number.isInteger(vote) || ![-1, 1].includes(vote)) {
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 400,
+      error: "El voto no es válido."
+    });
+  }
+  if (username.length + password.length + 1 > MAX_CREDENTIALS_LENGTH) {
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 400,
+      error: "El usuario y la contraseña superan el límite permitido."
+    });
+  }
+  try {
+    const authentication = verifyUser_(username, password);
+    if (!authentication.valid) {
+      return postMessageResponse_({
+        requestId: requestId,
+        ok: false,
+        status: 401,
+        error: authentication.error
+      });
+    }
+    const author = getPostAuthor_(postId);
+    if (author && !userExists_(author)) {
+      return postMessageResponse_({
+        requestId: requestId,
+        ok: false,
+        status: 400,
+        error: "La cuenta asociada a esta publicación no existe."
+      });
+    }
+
+    const lock = LockService.getScriptLock();
+    lock.waitLock(10000);
+    let votes;
+    let summary;
+    let accountPoints;
+    let postAuthorPoints = null;
+    try {
+      const sheet = getPostVotesSheet_();
+      const lastRow = sheet.getLastRow();
+      const rows = lastRow >= 2
+        ? sheet.getRange(2, 1, lastRow - 1, 4).getValues()
+        : [];
+      const rowIndex = rows.findIndex((row) =>
+        String(row[0]) === postId && String(row[1]) === username
+      );
+      if (rowIndex < 0) {
+        sheet.appendRow([postId, username, author, vote]);
+      } else {
+        sheet.getRange(rowIndex + 2, 3, 1, 2).setValues([[author, vote]]);
+      }
+      votes = readPostVotes_();
+      const commentsSheet = SpreadsheetApp.openById(
+        PropertiesService.getScriptProperties().getProperty(COMMENTS_SPREADSHEET_PROPERTY)
+      ).getSheetByName(COMMENTS_SHEET_NAME);
+      const commentsLastRow = commentsSheet.getLastRow();
+      const commentRows = commentsLastRow >= 2
+        ? commentsSheet.getRange(2, 1, commentsLastRow - 1, 9).getValues()
+        : [];
+      updateAccountPoints_(commentRows, votes);
+      accountPoints = getAccountPoints_(username);
+      postAuthorPoints = author ? getAccountPoints_(author) : null;
+      summary = summarizePostVotes_(votes)[postId] || { likes: 0, dislikes: 0 };
+    } finally {
+      lock.releaseLock();
+    }
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: true,
+      status: 200,
+      votes: summary,
+      accountPoints: accountPoints,
+      postAuthorPoints: postAuthorPoints,
+      message: author ? "Voto guardado." : "Voto guardado. No se han modificado puntos."
+    });
+  } catch (error) {
+    console.error(error);
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 500,
+      error: "No se pudo guardar el voto. Inténtalo más tarde."
+    });
+  }
+}
+
+function updateAccountPoints_(rows, postVotes) {
+  postVotes = postVotes || readPostVotes_();
   const properties = PropertiesService.getScriptProperties();
   const usersJson = properties.getProperty(COMMENTS_USERS_PROPERTY);
   if (!usersJson) {
@@ -464,9 +678,9 @@ function updateAccountPoints_(rows) {
   const totals = {};
   let changed = false;
   Object.keys(users).forEach((username) => {
-    totals[username] = { replies: 0, comments: 0 };
+    totals[username] = { replies: 0, comments: 0, votePoints: 0 };
     if (!Number.isFinite(users[username].points)) {
-      users[username].points = 100;
+      users[username].points = 25;
       changed = true;
     }
   });
@@ -476,7 +690,7 @@ function updateAccountPoints_(rows) {
     if (!author || row[5] === true || row[7] === true || !totals[author]) {
       return;
     }
-    totals[author].comments += row[6] ? 0.5 : 1;
+    totals[author].comments += row[6] ? 1.5 : 1;
     parseCommentReplies_(row[8]).forEach((reply) => {
       if (reply.username !== author) {
         totals[author].replies += 1;
@@ -484,11 +698,15 @@ function updateAccountPoints_(rows) {
     });
   });
 
+  postVotes.forEach((vote) => {
+    if (totals[vote.author]) {
+      totals[vote.author].votePoints += vote.vote === 1 ? 5 : -2;
+    }
+  });
+
   Object.keys(users).forEach((username) => {
     const total = totals[username];
-    const points = Math.round(
-      (100 + (total.comments ? total.replies / total.comments : 0)) * 100
-    ) / 100;
+    const points = Math.round((25 + total.replies - total.comments + total.votePoints) * 100) / 100;
     if (users[username].points !== points) {
       users[username].points = points;
       changed = true;
@@ -500,6 +718,18 @@ function updateAccountPoints_(rows) {
   return Object.fromEntries(
     Object.keys(users).map((username) => [username, users[username].points])
   );
+}
+
+function getAccountPoints_(username) {
+  const usersJson = PropertiesService.getScriptProperties()
+    .getProperty(COMMENTS_USERS_PROPERTY);
+  if (!usersJson) {
+    throw new Error("No hay usuarios configurados. Ejecuta setup().");
+  }
+  const users = JSON.parse(usersJson);
+  return Number.isFinite(users[username] && users[username].points)
+    ? users[username].points
+    : 25;
 }
 
 function countLineBreaks_(text) {
@@ -642,6 +872,13 @@ function manageComment_(parameters, requestId) {
           sheet.getRange(rowIndex + 2, 8).setValue(true);
           row[7] = true;
           result = { comment: commentFromRow_(row) };
+        }
+        if (result && !(action === "edit" && operation === "load")) {
+          const pointsByUsername = updateAccountPoints_(rows);
+          result.comment.authorPoints = Object.prototype.hasOwnProperty.call(
+            pointsByUsername,
+            username
+          ) ? pointsByUsername[username] : 25;
         }
       }
     } finally {

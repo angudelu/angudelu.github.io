@@ -1,0 +1,2 @@
+# Formato: AAAA-MM-DD HH:mm|@usuario|texto|ruta-de-imagen|enlace-de-la-imagen
+# El campo @usuario es opcional; omítelo para una publicación anónima.

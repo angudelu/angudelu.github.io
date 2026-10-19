@@ -5,8 +5,15 @@ body { margin: 0; background: #f6b6dc; color: #292129; font-family: Arial, sans-
 	border-left: 12px solid #e60091; border-right: 12px solid #e60091; background: #fbe0ef;
 }
 h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic Sans MS", "Comic Sans", cursive; }
-.video-frame { width: min(100%, 560px); aspect-ratio: 16 / 9; margin: 0 auto; overflow: hidden; background: #21151f; border: 5px solid #e60091; }
-.video { width: 100%; height: 100%; display: block; border: 0; }
+.video-frame { position: relative; width: min(100%, 560px); aspect-ratio: 16 / 9; margin: 0 auto; overflow: hidden; background: #21151f; border: 5px solid #e60091; }
+.video { width: 100%; height: 100%; display: block; border: 0; pointer-events: none; }
+.video-activate { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; border: 0; background: linear-gradient(#0005, #0005), #21151f url("https://i.ytimg.com/vi/AeJTnaK0WiA/hqdefault.jpg") center / cover no-repeat; color: #fff; font: bold 14px Arial, sans-serif; cursor: pointer; }
+.video-activate::before { width: 60px; height: 60px; border-radius: 50%; background: #e60091; content: ""; }
+.video-activate::after { position: absolute; top: calc(50% - 6px); left: 50%; border-top: 12px solid transparent; border-bottom: 12px solid transparent; border-left: 18px solid #fff; content: ""; transform: translate(-35%, -50%); }
+.video-activate span { padding: 5px 9px; border-radius: 4px; background: #21151fcc; }
+.video-activate:focus-visible { outline: 3px solid #fff; outline-offset: -6px; }
+.video-activate:disabled { cursor: wait; }
+.video-activate[hidden] { display: none; }
 .social-menu { position: fixed; z-index: 10; top: 16px; right: calc((100% - 1100px) / 4 - 62px); width: 124px; }
 .social-menu-toggle { display: block; width: 100%; padding: 12px 8px; border: 1px solid #222; border-radius: 5px; background: #fff; color: #111; font: bold 18px "Comic Sans MS", "Comic Sans", cursive; cursor: pointer; }
 .social-menu-links { position: absolute; top: calc(100% + 8px); right: 0; display: grid; gap: 8px; width: 100%; visibility: hidden; opacity: 0; transform: translateY(-6px); transition: opacity .16s ease, transform .16s ease, visibility .16s; }
@@ -42,6 +49,16 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .history-posts { display: grid; gap: 18px; }
 .history-post { padding: 16px; background: var(--light); line-height: 1.5; }
 .history-post .post-image { max-width: 680px; }
+.post-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 8px; color: #666; font-size: 12px; line-height: 1.3; }
+.post-author { display: inline-flex; align-items: center; gap: 5px; color: #292129; font-weight: bold; }
+.post-author-icon { width: 22px; height: 22px; object-fit: contain; }
+.post-date { display: inline; margin: 0; color: inherit; font-size: inherit; line-height: inherit; }
+.post-votes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+.post-vote { padding: 5px 9px; border: 1px solid #aaa; border-radius: 4px; background: #fff; color: #292129; font: inherit; font-size: 12px; cursor: pointer; }
+.post-vote--likes { border-color: #8ac7a0; }
+.post-vote--dislikes { border-color: #dc9b9b; }
+.post-vote:disabled { cursor: wait; opacity: .6; }
+.post-vote-status { flex-basis: 100%; min-height: 1em; color: #555; font-size: 12px; }
 .magenta { --light: #f5a9d7; --heading: #a00065; }
 .yellow { --light: #fff0a6; --heading: #8a6500; }
 .cyan { --light: #a9eff2; --heading: #087681; }
@@ -106,7 +123,7 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .comment-edited { color: #666; font-size: 12px; font-style: italic; }
 .comment-text { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .comment-deleted { min-width: 0; margin: 0; color: #666; font-style: italic; overflow-wrap: anywhere; }
-.comment-controls { position: relative; z-index: 2; display: flex; width: 44px; height: 32px; flex: 0 0 44px; justify-content: flex-end; margin: 4px -6px 0 auto; }
+.comment-controls { position: relative; z-index: 2; display: flex; width: fit-content; max-width: 100%; height: auto; flex: 0 1 auto; justify-content: flex-end; margin: 2px -6px 0 auto; }
 .comment-replies { position: absolute; z-index: 3; top: -5px; right: 8px; display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 3px; max-width: calc(100% - 16px); }
 .comment-reply-pin { position: relative; display: grid; width: 44px; min-width: 44px; height: 44px; min-height: 44px; flex: 0 0 44px; place-items: center; padding: 0; border: 0; background: transparent; cursor: pointer; transform: rotate(var(--reply-angle, 0deg)); transform-origin: center; }
 .comment-reply-pin > img { display: block; width: 42px; height: 42px; object-fit: contain; }
@@ -116,10 +133,10 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .comment-reply-avatar { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; }
 .comment-reply-message { display: block; }
 .comment-reply-pin [hidden] { display: none; }
-.comment-menu-toggle { display: grid; width: 40px; height: 32px; place-items: center; padding: 0; border: 1px solid #bbb; border-radius: 5px; background: #fff; color: #333; cursor: pointer; }
+.comment-menu-toggle { display: grid; width: 32px; height: 26px; place-items: center; padding: 0; border: 1px solid #bbb; border-radius: 5px; background: #fff; color: #333; cursor: pointer; }
 .comment-menu-toggle svg { display: block; width: 22px; height: 8px; fill: currentColor; }
 .comment-menu-toggle:hover, .comment-menu-toggle:focus-visible { background: #eee; }
-.comment-direct-reply { min-width: 76px; padding: 5px 8px; border: 1px solid #bbb; border-radius: 5px; background: #fff; color: #292129; font: inherit; cursor: pointer; }
+.comment-direct-reply { min-width: 0; max-width: 100%; padding: 3px 7px; border: 1px solid #bbb; border-radius: 5px; background: #fff; color: #292129; font: 12px/1.2 Arial, sans-serif; overflow-wrap: anywhere; cursor: pointer; }
 .comment-direct-reply:disabled { cursor: not-allowed; opacity: .55; }
 .comment-menu { position: absolute; right: 0; bottom: calc(100% + 4px); z-index: 1; display: grid; min-width: 120px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; background: #fff; box-shadow: 0 2px 8px #0002; }
 .comment-menu[hidden], .comment-management[hidden] { display: none; }

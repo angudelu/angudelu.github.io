@@ -8,8 +8,16 @@ function getLocalDateTime() {
 	return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
-function parsePosts(contents) {
+const appRootUrl = new URL(".", document.currentScript.src);
+let postVoteCountsPromise;
+let postVoteCountsError = "";
+
+function parsePosts(contents, file) {
 	const posts = [];
+	const color = file.match(/(?:^|\/)(magenta|amarillo|cian|negro)\//)?.[1]
+		|| window.location.pathname.match(/\/(magenta|amarillo|cian|negro)\//)?.[1]
+		|| "unknown";
+	const occurrences = new Map();
 	const entryPattern = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}):(\d{2}))?\|/gm;
 	const entries = [...contents.matchAll(entryPattern)];
 	for (let index = 0; index < entries.length; index += 1) {
@@ -18,9 +26,17 @@ function parsePosts(contents) {
 		const contentStart = entry.index + entry[0].length;
 		const contentEnd = entries[index + 1]?.index ?? contents.length;
 		let content = contents.slice(contentStart, contentEnd).trim();
+		const authorField = /^@([^|\r\n]{1,60})\|/.exec(content);
+		const author = authorField ? authorField[1].trim() : "";
+		if (authorField) {
+			content = content.slice(authorField[0].length);
+		}
 		const [year, month, day] = normalizedDate.split("-").map(Number);
 		const hours = Number(hour);
 		const minutes = Number(minute);
+		const dateTime = `${normalizedDate}T${hour}:${minute}`;
+		const occurrence = occurrences.get(dateTime) || 0;
+		occurrences.set(dateTime, occurrence + 1);
 		const parsedDate = new Date(Date.UTC(year, month - 1, day));
 		if (
 			parsedDate.getUTCFullYear() !== year ||
@@ -45,7 +61,9 @@ function parsePosts(contents) {
 			posts.push({
 				date: normalizedDate,
 				time: `${hour}:${minute}`,
-				dateTime: `${normalizedDate}T${hour}:${minute}`,
+				dateTime,
+				author,
+				postId: `${color}:${dateTime}:${occurrence}`,
 				text,
 				image,
 				link
@@ -65,7 +83,7 @@ function getSafeUrl(value) {
 	}
 
 	try {
-		const url = new URL(value, document.baseURI);
+		const url = new URL(value, appRootUrl);
 		return ["http:", "https:"].includes(url.protocol) ? url.href : null;
 	} catch (error) {
 		console.error(`URL no válida en una publicación: ${value}`, error);
@@ -113,15 +131,122 @@ function countLineBreaks(text) {
 	return (text.match(/\r\n|\r|\n/g) || []).length;
 }
 
+function getCommentWeight(comment) {
+	if (comment.private) {
+		return 0;
+	}
+	return comment.edited ? 1.5 : 1;
+}
+
+function getReceivedReplyCount(comment) {
+	if (comment.private) {
+		return 0;
+	}
+	return (comment.replies || []).filter((reply) => reply.username !== comment.name).length;
+}
+
+function formatPointChange(change) {
+	if (change === 0) {
+		return "sin cambio en puntos";
+	}
+	const value = new Intl.NumberFormat("es-ES", {
+		maximumFractionDigits: 2
+	}).format(Math.abs(change));
+	const unit = Math.abs(change) === 1 ? "punto" : "puntos";
+	return `${change > 0 ? "+" : "−"}${value} ${unit}`;
+}
+
+function updateDisplayedCommentPoints(username, points) {
+	if (!username || !Number.isFinite(points)) {
+		return;
+	}
+	const formattedPoints = new Intl.NumberFormat("es-ES", {
+		maximumFractionDigits: 2
+	}).format(points);
+	const unit = Math.abs(points) === 1 ? "punto" : "puntos";
+	document.querySelectorAll(".comment").forEach((comment) => {
+		if (comment.dataset.commentAuthor !== username) {
+			return;
+		}
+		const name = comment.querySelector(".comment-name");
+		if (!name) {
+			return;
+		}
+		let pointsLabel = name.querySelector(".comment-points");
+		if (!pointsLabel) {
+			pointsLabel = document.createElement("small");
+			pointsLabel.className = "comment-points";
+			name.append(pointsLabel);
+		}
+		pointsLabel.textContent = `${formattedPoints} ${unit}`;
+		pointsLabel.setAttribute("aria-label", `Puntos de ${username}: ${pointsLabel.textContent}`);
+	});
+}
+
+function getEditPointChange(comment) {
+	return !comment.private && !comment.edited ? -0.5 : 0;
+}
+
+function getDeletePointChange(comment) {
+	return getCommentWeight(comment) - getReceivedReplyCount(comment);
+}
+
+function getPublicCommentPointChange(isPrivate) {
+	return isPrivate ? 0 : -1;
+}
+
+function updateCommentSubmissionState() {
+	const form = document.querySelector("#comment-form");
+	const submit = form?.querySelector("button[type='submit']");
+	const recipient = document.querySelector("#comment-recipient");
+	if (!submit || !recipient) {
+		return;
+	}
+	const isPrivate = Boolean(recipient.value.trim());
+	const pointChange = getPublicCommentPointChange(isPrivate);
+	submit.textContent = `publicar comentario (${formatPointChange(pointChange)})`;
+	submit.title = activeCommentPoints !== null && activeCommentPoints < 1
+		? "No tienes puntos suficientes. Borra uno de tus comentarios para recuperar puntos."
+		: "";
+	const insufficientPoints = activeCommentPoints !== null && activeCommentPoints < 1;
+	submit.disabled = commentSubmissionInProgress || insufficientPoints;
+	const status = document.querySelector("#comment-status");
+	if (status && !commentSubmissionInProgress) {
+		if (insufficientPoints) {
+			status.textContent = "No tienes puntos suficientes para comentar. Borra uno de tus comentarios para recuperar puntos.";
+			status.classList.add("comment-status--error");
+		} else if (status.textContent.startsWith("No tienes puntos suficientes")) {
+			status.textContent = "";
+			status.classList.remove("comment-status--error");
+		}
+	}
+}
+
 function createPostElement(post) {
 	const container = document.createElement("article");
 	container.className = "history-post";
+	container.dataset.postId = post.postId;
 
+	const metadata = document.createElement("div");
+	metadata.className = "post-meta";
+	const author = document.createElement("span");
+	author.className = "post-author";
+	if (post.author) {
+		const profile = document.createElement("img");
+		profile.className = "post-author-icon";
+		profile.src = new URL(`icons/${encodeURIComponent(post.author)}.svg`, appRootUrl).href;
+		profile.alt = "";
+		profile.addEventListener("error", () => profile.remove(), { once: true });
+		author.append(profile, document.createTextNode(post.author));
+	} else {
+		author.textContent = "anónimo";
+	}
 	const dateElement = document.createElement("time");
 	dateElement.className = "post-date";
 	dateElement.dateTime = post.dateTime;
 	dateElement.textContent = formatPublicationDate(post.dateTime);
-	container.append(dateElement);
+	metadata.append(author, dateElement);
+	container.append(metadata);
 
 	if (post.text) {
 		const textElement = document.createElement("p");
@@ -154,6 +279,60 @@ function createPostElement(post) {
 		}
 	}
 
+	const votes = postVoteCountsPromise;
+	const actions = document.createElement("div");
+	actions.className = "post-votes";
+	actions.setAttribute("aria-label", "Votar esta publicación");
+	for (const [value, label, key] of [[1, "Me gusta", "likes"], [-1, "No me gusta", "dislikes"]]) {
+		const button = document.createElement("button");
+		button.className = `post-vote post-vote--${key}`;
+		button.type = "button";
+		button.setAttribute("aria-label", label);
+		button.textContent = `${label} (0)`;
+		button.addEventListener("click", async () => {
+			button.disabled = true;
+			try {
+				const result = await submitPostVote(post.postId, value);
+				for (const voteButton of actions.querySelectorAll(".post-vote")) {
+					const voteKey = voteButton.classList.contains("post-vote--likes") ? "likes" : "dislikes";
+					voteButton.textContent = `${voteKey === "likes" ? "Me gusta" : "No me gusta"} (${result.votes[voteKey]})`;
+				}
+				if (Number.isFinite(result.accountPoints)) {
+					activeCommentPoints = result.accountPoints;
+					updateCommentSubmissionState();
+				}
+				updateDisplayedCommentPoints(post.author, result.postAuthorPoints);
+				status.textContent = result.message || "Voto guardado.";
+			} catch (error) {
+				status.textContent = error.message || "No se pudo guardar el voto.";
+				if (error.status === 401) {
+					window.location.assign(new URL("#comment-name", appRootUrl).href);
+				}
+			} finally {
+				button.disabled = false;
+			}
+		});
+		actions.append(button);
+	}
+	const status = document.createElement("small");
+	status.className = "post-vote-status";
+	status.setAttribute("role", "status");
+	actions.append(status);
+	container.append(actions);
+
+	if (votes) {
+		votes.then((counts) => {
+			const postVotes = counts[post.postId] || { likes: 0, dislikes: 0 };
+			actions.querySelector(".post-vote--likes").textContent = `Me gusta (${postVotes.likes})`;
+			actions.querySelector(".post-vote--dislikes").textContent = `No me gusta (${postVotes.dislikes})`;
+			if (postVoteCountsError) {
+				status.textContent = "No se pudieron cargar los votos.";
+			}
+		}).catch((error) => {
+			status.textContent = "No se pudieron cargar los votos.";
+			console.error(error);
+		});
+	}
 	return container;
 }
 
@@ -162,13 +341,14 @@ async function fetchPosts(file) {
 	if (!response.ok) {
 		throw new Error(`no se va poder cargar ${file} (${response.status})`);
 	}
-	return parsePosts(await response.text());
+	return parsePosts(await response.text(), file);
 }
 
 async function loadGridText(element, date) {
 	const file = element.dataset.textFile;
 	try {
 		const posts = await fetchPosts(file);
+		await postVoteCountsPromise;
 		const post = getPostForDate(posts, date);
 		if (!post) {
 			element.textContent = `no hay publicaciones anteriores o programadas para el ${date}`;
@@ -184,6 +364,90 @@ async function loadGridText(element, date) {
 const now = getLocalDateTime();
 document.querySelectorAll(".grid-text").forEach((element) => {
 	loadGridText(element, now);
+});
+
+async function loadPostVoteCounts() {
+	if (!window.COMMENTS_API_URL) {
+		const response = await fetch("/api/posts/votes");
+		const result = await response.json();
+		if (!response.ok) {
+			throw new Error(result.error || "No se pudieron cargar los votos.");
+		}
+		return result.votes || {};
+	}
+
+	return new Promise((resolve, reject) => {
+		const callbackName = `postVotesCallback${Date.now()}${Math.random().toString(36).slice(2)}`;
+		const script = document.createElement("script");
+		const timeout = window.setTimeout(() => {
+			cleanup();
+			reject(new Error("Tiempo de espera agotado al consultar los votos."));
+		}, 15000);
+		const cleanup = () => {
+			window.clearTimeout(timeout);
+			delete window[callbackName];
+			script.remove();
+		};
+		window[callbackName] = (result) => {
+			cleanup();
+			if (result.error) {
+				reject(new Error(result.error));
+				return;
+			}
+			if ((result.apiVersion || 0) < 8) {
+				reject(new Error("Los votos requieren la versión actualizada de Apps Script (apiVersion 8)."));
+				return;
+			}
+			resolve(result.votes || {});
+		};
+		script.onerror = () => {
+			cleanup();
+			reject(new Error("No se pudieron cargar los votos."));
+		};
+		script.src = `${window.COMMENTS_API_URL}${window.COMMENTS_API_URL.includes("?") ? "&" : "?"}action=postVotes&callback=${callbackName}`;
+		document.head.append(script);
+	});
+}
+
+async function submitPostVote(postId, value) {
+	if (!activeCommentCredentials) {
+		const error = new Error("Tienes que iniciar sesión para votar.");
+		error.status = 401;
+		throw error;
+	}
+	const fields = {
+		action: "postVote",
+		requestId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+		postId,
+		vote: value,
+		username: activeCommentCredentials.username,
+		password: activeCommentCredentials.password
+	};
+	if (window.COMMENTS_API_URL) {
+		const api = await loadAppsScriptComments();
+		if ((api.apiVersion || 0) < 8) {
+			throw new Error("Los votos requieren la versión actualizada de Apps Script. Publica la versión nueva de Code.gs.");
+		}
+		return submitAppsScriptRequest(fields);
+	}
+	const response = await fetch("/api/posts/vote", {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(fields)
+	});
+	const result = await response.json();
+	if (!response.ok) {
+		throw Object.assign(new Error(result.error || "No se pudo guardar el voto."), {
+			status: response.status
+		});
+	}
+	return result;
+}
+
+postVoteCountsPromise = loadPostVoteCounts().catch((error) => {
+	postVoteCountsError = error.message;
+	console.error("No se pudieron cargar los votos de las publicaciones.", error);
+	return {};
 });
 
 const socialMenu = document.querySelector("#social-menu");
@@ -214,6 +478,7 @@ document.querySelectorAll("[data-history-file]").forEach(async (element) => {
 	const file = element.dataset.historyFile;
 	try {
 		const posts = (await fetchPosts(file)).filter((post) => post.dateTime <= now);
+		await postVoteCountsPromise;
 		if (posts.length === 0) {
 			element.textContent = "encara no hay publicaciones en este historial";
 			return;
@@ -226,6 +491,8 @@ document.querySelectorAll("[data-history-file]").forEach(async (element) => {
 });
 
 let activeCommentCredentials = null;
+let activeCommentPoints = null;
+let commentSubmissionInProgress = false;
 const commentSessionStorageKey = "angudelu-comment-session";
 
 function clearStoredCommentSession() {
@@ -239,6 +506,7 @@ function clearStoredCommentSession() {
 function rememberCommentCredentials(credentials) {
 	const parsed = parseManagementCredentials(credentials);
 	activeCommentCredentials = parsed;
+	activeCommentPoints = null;
 	let persistenceSucceeded = true;
 	try {
 		localStorage.setItem(commentSessionStorageKey, JSON.stringify(parsed));
@@ -258,6 +526,7 @@ function rememberCommentCredentials(credentials) {
 			replyOption.disabled = hasReachedReplyLimit(container.replyData || []);
 		}
 	});
+	updateCommentSubmissionState();
 	return persistenceSucceeded;
 }
 
@@ -416,7 +685,7 @@ function createCommentElement(comment) {
 	if (comment.deleted) {
 		const deleted = document.createElement("p");
 		deleted.className = "comment-deleted";
-		deleted.textContent = "comentario eliminado";
+		deleted.textContent = `comentario borrado por '${comment.name || "usuario desconocido"}'`;
 		return deleted;
 	}
 
@@ -437,12 +706,14 @@ function createCommentElement(comment) {
 	const name = document.createElement("strong");
 	name.className = "comment-name";
 	const authorPoints = Number(comment.authorPoints);
-	if (Number.isFinite(authorPoints) && authorPoints >= 0) {
+	if (Number.isFinite(authorPoints)) {
 		const points = document.createElement("small");
 		points.className = "comment-points";
-		points.textContent = `${new Intl.NumberFormat("es-ES", {
+		const formattedPoints = new Intl.NumberFormat("es-ES", {
 			maximumFractionDigits: 2
-		}).format(authorPoints)} puntos`;
+		}).format(authorPoints);
+		const pointsUnit = Math.abs(authorPoints) === 1 ? "punto" : "puntos";
+		points.textContent = `${formattedPoints} ${pointsUnit}`;
 		points.setAttribute("aria-label", `Puntos de ${comment.name}: ${points.textContent}`);
 		name.append(points);
 	}
@@ -511,10 +782,10 @@ function createCommentElement(comment) {
 	menu.hidden = true;
 	const editOption = document.createElement("button");
 	editOption.type = "button";
-	editOption.textContent = "editar";
+	editOption.textContent = `editar (${formatPointChange(getEditPointChange(comment))})`;
 	const deleteOption = document.createElement("button");
 	deleteOption.type = "button";
-	deleteOption.textContent = "eliminar";
+	deleteOption.textContent = `eliminar (${formatPointChange(getDeletePointChange(comment))})`;
 	const replyOption = document.createElement("button");
 	replyOption.type = "button";
 	replyOption.textContent = "responder";
@@ -605,7 +876,7 @@ function createCommentElement(comment) {
 		buttons.className = "comment-management-buttons";
 		const save = document.createElement("button");
 		save.type = "submit";
-		save.textContent = "guardar cambios";
+		save.textContent = `guardar cambios (${formatPointChange(getEditPointChange(comment))})`;
 		const cancel = document.createElement("button");
 		cancel.type = "button";
 		cancel.className = "comment-cancel-button";
@@ -622,11 +893,11 @@ function createCommentElement(comment) {
 			status.textContent = "guardando cambios...";
 			status.classList.remove("comment-status--error");
 			try {
-				const result = await submitCommentManagement(
+				await submitCommentManagement(
 					"edit", comment, getCommentCredentials(), editedText.value, "save"
 				);
 				commentListRevision += 1;
-				article.replaceWith(createCommentElement(result.comment));
+				await loadComments();
 			} catch (error) {
 				status.textContent = error.message || "no se pudo modificar el comentario. inténtalo de nuevo";
 				status.classList.add("comment-status--error");
@@ -646,7 +917,7 @@ function createCommentElement(comment) {
 		const confirm = document.createElement("button");
 		confirm.type = "submit";
 		confirm.className = "comment-delete-confirm";
-		confirm.textContent = "confirmar eliminación";
+		confirm.textContent = `confirmar eliminación (${formatPointChange(getDeletePointChange(comment))})`;
 		const cancel = document.createElement("button");
 		cancel.type = "button";
 		cancel.className = "comment-cancel-button";
@@ -663,11 +934,11 @@ function createCommentElement(comment) {
 			status.textContent = "comprobando credenciales...";
 			status.classList.remove("comment-status--error");
 			try {
-				const result = await submitCommentManagement(
+				await submitCommentManagement(
 					"delete", comment, getCommentCredentials()
 				);
 				commentListRevision += 1;
-				article.replaceWith(createCommentElement(result.comment));
+				await loadComments();
 			} catch (error) {
 				status.textContent = error.message || "no se pudo eliminar el comentario. inténtalo de nuevo";
 				status.classList.add("comment-status--error");
@@ -818,8 +1089,8 @@ async function loadComments() {
 		if (revision !== commentListRevision) {
 			return;
 		}
-		if (window.COMMENTS_API_URL && (result.apiVersion || 0) < 6) {
-			throw new Error("Los comentarios, el historial privado y los puntos requieren la versión actualizada de Apps Script. Publica la versión nueva de Code.gs.");
+		if (window.COMMENTS_API_URL && (result.apiVersion || 0) < 7) {
+			throw new Error("El saldo de puntos y el coste de comentar requieren la versión actualizada de Apps Script. Publica la versión nueva de Code.gs.");
 		}
 		const today = getLocalDateTime().slice(0, 10);
 		const comments = result.comments.filter((comment) => {
@@ -846,8 +1117,8 @@ async function loadAuthenticatedComments() {
 	const { username, password } = activeCommentCredentials;
 	if (window.COMMENTS_API_URL) {
 		const api = await loadAppsScriptComments();
-		if ((api.apiVersion || 0) < 6) {
-			throw new Error("El historial privado requiere la versión actualizada de Apps Script. Publica la versión nueva de Code.gs.");
+		if ((api.apiVersion || 0) < 7) {
+			throw new Error("El historial privado y los puntos requieren la versión actualizada de Apps Script. Publica la versión nueva de Code.gs.");
 		}
 		const result = await submitAppsScriptRequest({
 			action: "list",
@@ -856,7 +1127,15 @@ async function loadAuthenticatedComments() {
 			password
 		});
 		appsScriptCommentsSnapshot = result.comments || [];
-		return { apiVersion: api.apiVersion, comments: appsScriptCommentsSnapshot };
+		activeCommentPoints = Number.isFinite(result.accountPoints)
+			? result.accountPoints
+			: null;
+		updateCommentSubmissionState();
+		return {
+			apiVersion: api.apiVersion,
+			accountPoints: activeCommentPoints,
+			comments: appsScriptCommentsSnapshot
+		};
 	}
 	const response = await fetch("/api/comments/list", {
 		method: "POST",
@@ -869,6 +1148,8 @@ async function loadAuthenticatedComments() {
 			status: response.status
 		});
 	}
+	activeCommentPoints = Number.isFinite(result.accountPoints) ? result.accountPoints : null;
+	updateCommentSubmissionState();
 	return result;
 }
 
@@ -1062,8 +1343,8 @@ async function submitCommentManagement(action, comment, credentials, text = "", 
 	let result;
 	if (window.COMMENTS_API_URL) {
 		const api = await loadAppsScriptComments();
-		if ((api.apiVersion || 0) < 2) {
-			throw new Error("La edición y el borrado no están habilitados en la implementación de Apps Script. Publica la versión nueva de Code.gs.");
+		if ((api.apiVersion || 0) < 7) {
+			throw new Error("La edición, el borrado y el saldo de puntos requieren la versión actualizada de Apps Script. Publica la versión nueva de Code.gs.");
 		}
 		const previousComment = api.comments.find((entry) => entry.requestId === comment.requestId);
 		result = await submitAppsScriptRequest({
@@ -1125,8 +1406,8 @@ async function submitCommentReply(comment, credentials, text) {
 	};
 	if (window.COMMENTS_API_URL) {
 		const api = await loadAppsScriptComments();
-		if ((api.apiVersion || 0) < 4) {
-			throw new Error("Las respuestas requieren la versión nueva de Apps Script. Publica la versión actualizada de Code.gs.");
+		if ((api.apiVersion || 0) < 7) {
+			throw new Error("Las respuestas y los puntos requieren la versión nueva de Apps Script. Publica la versión actualizada de Code.gs.");
 		}
 		return submitAppsScriptRequest(fields);
 	}
@@ -1207,6 +1488,10 @@ let commentListRevision = 0;
 async function submitAppsScriptComment(credentials, comment) {
 	const iframe = document.querySelector("#comment-transport");
 	const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+	const api = await loadAppsScriptComments();
+	if ((api.apiVersion || 0) < 7) {
+		throw new Error("El coste de comentar requiere la versión actualizada de Apps Script. Publica la versión nueva de Code.gs.");
+	}
 	const previousComments = appsScriptCommentsSnapshot ||
 		(await loadAuthenticatedComments()).comments;
 	const recipientSeparator = credentials.lastIndexOf("@");
@@ -1385,9 +1670,12 @@ if (commentForm) {
 
 	const commentInput = document.querySelector("#comment-text");
 	const commentCount = document.querySelector("#comment-count");
+	const recipientInput = document.querySelector("#comment-recipient");
 	commentInput.addEventListener("input", () => {
 		commentCount.textContent = `${commentInput.value.length}/280`;
+		updateCommentSubmissionState();
 	});
+	recipientInput.addEventListener("input", updateCommentSubmissionState);
 
 	commentForm.addEventListener("submit", async (event) => {
 		event.preventDefault();
@@ -1409,6 +1697,7 @@ if (commentForm) {
 		const submitButton = commentForm.querySelector("button[type='submit']");
 		status.textContent = "Publicando...";
 		status.classList.remove("comment-status--error");
+		commentSubmissionInProgress = true;
 		submitButton.disabled = true;
 
 		try {
@@ -1452,10 +1741,12 @@ if (commentForm) {
 			}
 			console.error(error);
 		} finally {
-			submitButton.disabled = false;
+			commentSubmissionInProgress = false;
+			updateCommentSubmissionState();
 		}
 	});
 
+	updateCommentSubmissionState();
 }
 
 async function restoreCommentSession() {
@@ -1507,6 +1798,78 @@ async function restoreCommentSession() {
 	}
 }
 
+function initializeFeaturedVideo() {
+	const iframe = document.querySelector("#featured-video");
+	const activationButton = document.querySelector("#video-activate");
+	if (!(iframe instanceof HTMLIFrameElement) || !(activationButton instanceof HTMLButtonElement)) {
+		return;
+	}
+
+	const iframeUrl = new URL(iframe.src);
+	iframeUrl.searchParams.set("origin", window.location.origin);
+	iframe.src = iframeUrl.href;
+
+	let player = null;
+	let playRequested = false;
+	let playbackTimeout;
+	const status = activationButton.querySelector("span");
+	const showError = (message) => {
+		activationButton.disabled = true;
+		if (status) {
+			status.textContent = message;
+		}
+	};
+
+	activationButton.addEventListener("click", () => {
+		playRequested = true;
+		activationButton.disabled = true;
+		if (status) {
+			status.textContent = "cargando vídeo...";
+		}
+		player?.playVideo();
+		window.clearTimeout(playbackTimeout);
+		playbackTimeout = window.setTimeout(() => {
+			if (!activationButton.hidden && (!window.YT || !player || player.getPlayerState() !== window.YT.PlayerState.PLAYING)) {
+				activationButton.disabled = false;
+				if (status) {
+					status.textContent = "No se pudo iniciar. Pulsa para reintentar.";
+				}
+			}
+		}, 10000);
+	});
+
+	window.onYouTubeIframeAPIReady = () => {
+		player = new window.YT.Player(iframe, {
+			events: {
+				onReady: (event) => {
+					event.target.mute();
+					if (event.target.getPlayerState() === window.YT.PlayerState.PLAYING) {
+						activationButton.hidden = true;
+					} else if (playRequested) {
+						event.target.playVideo();
+					}
+				},
+				onStateChange: (event) => {
+					if (event.data === window.YT.PlayerState.PLAYING) {
+						window.clearTimeout(playbackTimeout);
+						activationButton.hidden = true;
+					}
+				},
+				onError: () => showError("No se pudo cargar el vídeo.")
+			}
+		});
+	};
+
+	const apiScript = document.createElement("script");
+	apiScript.src = "https://www.youtube.com/iframe_api";
+	apiScript.onerror = () => showError("No se pudo cargar el vídeo.");
+	document.head.append(apiScript);
+}
+
+initializeFeaturedVideo();
+
 if (document.querySelector("#comment-list")) {
 	restoreCommentSession().finally(loadComments);
+} else if (document.querySelector("[data-history-file]")) {
+	restoreCommentSession();
 }

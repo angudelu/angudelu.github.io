@@ -11,7 +11,10 @@
 	<main class="page">
 		<h1>hola familia</h1>
 		<div class="video-frame">
-			<iframe class="video" width="560" height="315" src="https://www.youtube.com/embed/AeJTnaK0WiA?autoplay=1&mute=1&playsinline=1&controls=0&disablekb=1" title="YouTube video player" frameborder="0" allow="autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+			<iframe id="featured-video" class="video" width="560" height="315" src="https://www.youtube.com/embed/AeJTnaK0WiA?autoplay=1&mute=1&playsinline=1&controls=0&autohide=1&showinfo=0&disablekb=1&modestbranding=1&rel=0&fs=0&iv_load_policy=3&enablejsapi=1" title="Vídeo destacado" tabindex="-1" frameborder="0" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+			<button class="video-activate" id="video-activate" type="button" aria-label="Reproducir vídeo destacado">
+				<span>reproducir vídeo</span>
+			</button>
 		</div>
 		<div class="social-menu" id="social-menu">
 			<button class="social-menu-toggle" id="social-menu-toggle" type="button" aria-expanded="false" aria-controls="social-menu-links">
@@ -25,10 +28,10 @@
 		</div>
 		<a class="explore-button" href="https://youtu.be/vvCGZEqk8Ak">explorar</a>
 		<div class="grid">
-			<section class="section magenta"><h2><a href="historial-magenta.html">magenta</a></h2><div class="grid-text" data-text-file="texto-magenta.txt">cargando texto...</div></section>
-			<section class="section yellow"><h2><a href="historial-amarillo.html">amarillo</a></h2><div class="grid-text" data-text-file="texto-amarillo.txt">cargando texto...</div></section>
-			<section class="section cyan"><h2><a href="historial-cian.html">cian</a></h2><div class="grid-text" data-text-file="texto-cian.txt">cargando texto...</div></section>
-			<section class="section black"><h2><a href="historial-negro.html">novedades!!!</a></h2><div class="grid-text" data-text-file="texto-negro.txt">cargando texto...</div></section>
+			<section class="section magenta"><h2><a href="magenta/">magenta</a></h2><div class="grid-text" data-text-file="magenta/texto-magenta.txt">cargando texto...</div></section>
+			<section class="section yellow"><h2><a href="amarillo/">amarillo</a></h2><div class="grid-text" data-text-file="amarillo/texto-amarillo.txt">cargando texto...</div></section>
+			<section class="section cyan"><h2><a href="cian/">cian</a></h2><div class="grid-text" data-text-file="cian/texto-cian.txt">cargando texto...</div></section>
+			<section class="section black"><h2><a href="negro/">novedades!!!</a></h2><div class="grid-text" data-text-file="negro/texto-negro.txt">cargando texto...</div></section>
 		</div>
 		<section class="comments-panel" aria-labelledby="comments-title">
 			<h2 id="comments-title">comentarios</h2>
@@ -46,7 +49,7 @@
 				<label for="comment-recipient">destinatario (opcional, para un comentario privado)</label>
 				<input id="comment-recipient" type="text" maxlength="80" autocomplete="off">
 				<small class="comment-count" id="comment-count" aria-live="polite">0/280</small>
-				<button type="submit">publicar comentario</button>
+				<button id="comment-submit" type="submit">publicar comentario (−1 punto)</button>
 				<p class="comment-status" id="comment-status" role="status" aria-live="polite"></p>
 			</form>
 			<div class="comment-list" id="comment-list" aria-live="polite">cargando comentarios...</div>
@@ -55,6 +58,6 @@
 		</section>
 	</main>
 	<script src="comments-config.js"></script>
-	<script src="app.js?v=comment-points-dates-4" defer></script>
+	<script src="app.js?v=post-votes-10" defer></script>
 </body>
 </html>
