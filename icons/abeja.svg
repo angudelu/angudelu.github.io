@@ -29,13 +29,6 @@
      inkscape:window-y="-9"
      inkscape:window-maximized="1"
      inkscape:current-layer="svg4" />
-  <ellipse
-     style="fill:#ffd500;fill-opacity:0.5;stroke:none;stroke-width:0.957562"
-     id="path4"
-     cx="32.013409"
-     cy="32.279301"
-     rx="30.737125"
-     ry="30.471235" />
   <path
      d="M 47.550781,46.819231 15.560547,45.153215 a 19.250587,18.984695 0 0 0 16.558594,9.300782 19.250587,18.984695 0 0 0 15.43164,-7.634766 z"
      style="fill:#000000;fill-opacity:1"
@@ -74,8 +67,9 @@
      transform="matrix(-0.81683376,0.57687313,0.58187344,0.81327935,0,0)" />
   <path
      style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-dasharray:none;stroke-opacity:1"
-     d="m 27.22735,51.79578 2.765278,5.743269 3.297062,-5.424199 z"
-     id="path15" />
+     d="m 26.482852,52.859348 3.509776,7.125908 4.892415,-6.700481 z"
+     id="path15"
+     sodipodi:nodetypes="cccc" />
   <path
      style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:3;stroke-dasharray:none;stroke-opacity:1"
      d="M 20.952297,6.8068375 27.971848,19.676015"

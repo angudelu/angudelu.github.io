@@ -88,6 +88,31 @@ function appendFormattedPostText(element, text) {
 	element.append(fragment);
 }
 
+function formatPublicationDate(value, now = new Date()) {
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) {
+		return String(value);
+	}
+	const age = now.getTime() - date.getTime();
+	if (age >= 0 && age < 60 * 60 * 1000) {
+		return "hace unos minutos";
+	}
+	if (age >= 60 * 60 * 1000 && age < 24 * 60 * 60 * 1000) {
+		return new Intl.DateTimeFormat("es-ES", {
+			hour: "2-digit",
+			minute: "2-digit"
+		}).format(date);
+	}
+	return new Intl.DateTimeFormat("es-ES", {
+		dateStyle: "medium",
+		timeStyle: "short"
+	}).format(date);
+}
+
+function countLineBreaks(text) {
+	return (text.match(/\r\n|\r|\n/g) || []).length;
+}
+
 function createPostElement(post) {
 	const container = document.createElement("article");
 	container.className = "history-post";
@@ -95,7 +120,7 @@ function createPostElement(post) {
 	const dateElement = document.createElement("time");
 	dateElement.className = "post-date";
 	dateElement.dateTime = post.dateTime;
-	dateElement.textContent = `${post.date} ${post.time}`;
+	dateElement.textContent = formatPublicationDate(post.dateTime);
 	container.append(dateElement);
 
 	if (post.text) {
@@ -354,13 +379,19 @@ function renderCommentReplies(container, replies) {
 			pin.classList.toggle("is-open", open);
 			pin.setAttribute("aria-expanded", String(open));
 		};
-		pin.addEventListener("mouseenter", () => setOpen(true));
+		pin.addEventListener("mouseenter", () => {
+			closeExpandedReplies(pin);
+			setOpen(true);
+		});
 		pin.addEventListener("mouseleave", () => {
 			if (pin.dataset.pinned !== "true") {
 				setOpen(false);
 			}
 		});
-		pin.addEventListener("focus", () => setOpen(true));
+		pin.addEventListener("focus", () => {
+			closeExpandedReplies(pin);
+			setOpen(true);
+		});
 		pin.addEventListener("blur", () => {
 			if (pin.dataset.pinned !== "true") {
 				setOpen(false);
@@ -405,6 +436,16 @@ function createCommentElement(comment) {
 
 	const name = document.createElement("strong");
 	name.className = "comment-name";
+	const authorPoints = Number(comment.authorPoints);
+	if (Number.isFinite(authorPoints) && authorPoints >= 0) {
+		const points = document.createElement("small");
+		points.className = "comment-points";
+		points.textContent = `${new Intl.NumberFormat("es-ES", {
+			maximumFractionDigits: 2
+		}).format(authorPoints)} puntos`;
+		points.setAttribute("aria-label", `Puntos de ${comment.name}: ${points.textContent}`);
+		name.append(points);
+	}
 	const authorIconPath = getUsernameIconPath(comment.name);
 	if (authorIconPath) {
 		const avatar = document.createElement("img");
@@ -424,10 +465,7 @@ function createCommentElement(comment) {
 	const date = document.createElement("time");
 	date.className = "comment-date";
 	date.dateTime = comment.date;
-	date.textContent = new Intl.DateTimeFormat("es-ES", {
-		dateStyle: "medium",
-		timeStyle: "short"
-	}).format(new Date(comment.date));
+	date.textContent = formatPublicationDate(comment.date);
 	header.append(date);
 	if (comment.edited) {
 		const edited = document.createElement("small");
@@ -501,8 +539,7 @@ function createCommentElement(comment) {
 	const management = document.createElement("div");
 	management.className = "comment-management";
 	management.hidden = true;
-	header.append(controls);
-	article.append(management);
+	article.append(controls, management);
 
 	menuToggle.addEventListener("click", () => {
 		if (!activeCommentCredentials) {
@@ -691,6 +728,8 @@ function createCommentElement(comment) {
 				comment.replies = [...(replies.replyData || comment.replies || []), result.reply];
 				renderCommentReplies(replies, comment.replies);
 				management.hidden = true;
+				commentListRevision += 1;
+				await loadComments();
 			} catch (error) {
 				status.textContent = error.message || "No se pudo publicar la respuesta.";
 				status.classList.add("comment-status--error");
@@ -779,6 +818,9 @@ async function loadComments() {
 		if (revision !== commentListRevision) {
 			return;
 		}
+		if (window.COMMENTS_API_URL && (result.apiVersion || 0) < 6) {
+			throw new Error("Los comentarios, el historial privado y los puntos requieren la versión actualizada de Apps Script. Publica la versión nueva de Code.gs.");
+		}
 		const today = getLocalDateTime().slice(0, 10);
 		const comments = result.comments.filter((comment) => {
 			const dateKey = getCommentDateKey(comment.date);
@@ -804,7 +846,7 @@ async function loadAuthenticatedComments() {
 	const { username, password } = activeCommentCredentials;
 	if (window.COMMENTS_API_URL) {
 		const api = await loadAppsScriptComments();
-		if ((api.apiVersion || 0) < 5) {
+		if ((api.apiVersion || 0) < 6) {
 			throw new Error("El historial privado requiere la versión actualizada de Apps Script. Publica la versión nueva de Code.gs.");
 		}
 		const result = await submitAppsScriptRequest({
@@ -814,7 +856,7 @@ async function loadAuthenticatedComments() {
 			password
 		});
 		appsScriptCommentsSnapshot = result.comments || [];
-		return { comments: appsScriptCommentsSnapshot };
+		return { apiVersion: api.apiVersion, comments: appsScriptCommentsSnapshot };
 	}
 	const response = await fetch("/api/comments/list", {
 		method: "POST",
@@ -1010,6 +1052,9 @@ function parseManagementCredentials(credentials) {
 
 async function submitCommentManagement(action, comment, credentials, text = "", operation = "") {
 	const { username, password } = parseManagementCredentials(credentials);
+	if (action === "edit" && operation === "save" && countLineBreaks(text) > 3) {
+		throw new Error("El comentario admite como máximo 3 saltos de línea.");
+	}
 	if (action === "edit" && operation === "load") {
 		return loadPrivateComment(comment.requestId, credentials);
 	}
@@ -1356,6 +1401,11 @@ if (commentForm) {
 			? `${credentials}@${recipient}`
 			: credentials;
 		const commentText = commentInput.value;
+		if (countLineBreaks(commentText) > 3) {
+			status.classList.add("comment-status--error");
+			status.textContent = "El comentario admite como máximo 3 saltos de línea.";
+			return;
+		}
 		const submitButton = commentForm.querySelector("button[type='submit']");
 		status.textContent = "Publicando...";
 		status.classList.remove("comment-status--error");

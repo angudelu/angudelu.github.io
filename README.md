@@ -9,7 +9,7 @@ La caja de comentarios está debajo de la rejilla de colores. Para publicar nece
 3. Escribe el mensaje en **Comentario**. El contador indica cuántos caracteres llevas: se permiten hasta **280**.
 4. Pulsa **Publicar comentario**. Si se publica correctamente, aparecerá en la lista.
 
-Cada cuenta puede publicar como máximo **5 comentarios al día**.
+Cada cuenta puede publicar como máximo **10 comentarios al día**.
 
 Después de iniciar sesión, la sesión se guarda en el almacenamiento local del navegador para que siga activa al recargar. Esto guarda las credenciales en ese navegador; cierra sesión borrando los datos del sitio si compartes el dispositivo. La sesión se utiliza para publicar, responder, editar y eliminar, y para mostrar solo los comentarios privados dirigidos a esa cuenta o enviados por ella.
 
@@ -37,6 +37,8 @@ Si el comentario es privado, solo el autor puede editarlo; seguirá sin aparecer
 
 Pulsa los tres puntos y elige **Responder** en tus comentarios, o **Responder** directamente en comentarios de otras personas. Debes iniciar sesión primero. Cada usuario puede dejar **una respuesta por comentario**; cada comentario admite hasta **5 respuestas** en total y cada respuesta hasta **50 caracteres**. El contador muestra los caracteres escritos. No cuentan para el límite diario de comentarios. Se muestran como un icono en la parte superior derecha; al pasar el cursor o pulsarlo aparece el texto y el autor. Si `icons/` contiene un SVG con el mismo nombre que el usuario, se usa como icono y avatar; si no, se muestra un insecto. Las respuestas a comentarios públicos son visibles para todos; las respuestas a comentarios privados solo pueden publicarlas y leerlas el remitente o el destinatario.
 
+Los puntos de cada cuenta parten de **100**. Se calculan como `100 + r/c`, donde `r` es el número de respuestas de otras personas a sus comentarios públicos y `c` es el número de comentarios públicos no eliminados (cada comentario editado cuenta como medio). Al pasar el cursor por uno de sus comentarios se muestra su puntuación sin desplazar el texto.
+
 En la página principal se muestran solo los comentarios de hoy. Pulsa **Ver comentarios más antiguos**, debajo de la lista, para abrir el historial.
 
 ## Mensajes de error habituales
@@ -49,8 +51,9 @@ En la página principal se muestran solo los comentarios de hoy. Pulsa **Ver com
 - **Solo el remitente o destinatario puede responder a este comentario privado**: inicia sesión con una de las dos cuentas.
 - **No se pudo modificar/eliminar el comentario**: revisa la conexión e inténtalo de nuevo.
 - **destinatario no existente**: comprueba el nombre de la cuenta destinataria.
-- **Has alcanzado el límite de 5 comentarios por día**: espera al siguiente día para volver a comentar.
+- **Has alcanzado el límite de 10 comentarios por día**: espera al siguiente día para volver a comentar.
 - **El comentario admite hasta 280 caracteres**: acorta el texto hasta el máximo indicado por el contador.
+- **El comentario admite como máximo 3 saltos de línea**: reduce los saltos de línea a tres o menos.
 
 Si no tienes una cuenta, contacta con la persona que administra la página para solicitar acceso.
 
@@ -62,7 +65,7 @@ Los archivos `texto-magenta.txt`, `texto-amarillo.txt`, `texto-cian.txt` y `text
 AAAA-MM-DD HH:mm|texto|ruta-de-imagen|enlace-de-la-imagen
 ```
 
-La fecha y la hora van al principio de cada post. La hora usa el formato de 24 horas y la zona horaria local de la persona que visita la página. Así puedes añadir varias publicaciones en un mismo día; en el grid se muestra la más reciente cuya fecha y hora ya hayan llegado. Los historiales muestran todas las publicaciones anteriores ordenadas de más reciente a más antigua. La imagen, el enlace y la hora son opcionales. Si omites la hora se considera `00:00`, por compatibilidad con entradas que solo contienen la fecha.
+La fecha y la hora van al principio de cada post. La hora usa el formato de 24 horas y la zona horaria local de la persona que visita la página. Así puedes añadir varias publicaciones en un mismo día; en el grid se muestra la más reciente cuya fecha y hora ya hayan llegado. Los historiales muestran todas las publicaciones anteriores ordenadas de más reciente a más antigua. La fecha visible en publicaciones y comentarios muestra «hace unos minutos» durante la primera hora, solo la hora durante el primer día y la fecha y hora después. La imagen, el enlace y la hora son opcionales. Si omites la hora se considera `00:00`, por compatibilidad con entradas que solo contienen la fecha.
 
 El texto puede ocupar varias líneas y admite formato sencillo: escribe `\n` para insertar un salto de línea o pon una parte entre guiones bajos para mostrarla en **negrita**. Se pueden combinar ambas cosas. Si añades imagen y enlace, sepáralos del texto con `|`; pon esos campos al final, cada uno separado con `|`.
 

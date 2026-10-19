@@ -80,7 +80,7 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .comment-status--error { color: #c00; font-size: 12px; }
 .comment-count { justify-self: end; color: #666; font-size: 12px; }
 .comment-list { display: grid; min-width: 0; gap: 12px; margin-top: 18px; }
-.comment { position: relative; min-width: 0; max-width: 100%; padding: 8px 14px 12px; border: 1px solid #ddd; border-radius: 4px; background: #fff; }
+.comment { position: relative; min-width: 0; max-width: 100%; padding: 8px 14px 4px; border: 1px solid #ddd; border-radius: 4px; background: #fff; }
 .comment--private { background: #111; color: #fff; }
 .comment--private .comment-edited, .comment--private .comment-management-status { color: #ddd; }
 .comment--private .comment-menu-toggle { border-color: #777; background: #333; color: #fff; }
@@ -98,13 +98,15 @@ h1 {margin: 0 0 18px; color: #d00083; text-align: center; font: bold 50px "Comic
 .private-comment-status { flex-basis: 100%; min-height: 1em; color: #ddd; }
 .private-comment-status.comment-status--error { color: #ff8c8c; }
 .comment-header { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding-right: 112px; }
-.comment-name { display: inline-flex; min-width: 0; align-items: center; gap: 5px; overflow-wrap: anywhere; }
+.comment-name { position: relative; display: inline-flex; min-width: 0; align-items: center; gap: 5px; overflow-wrap: anywhere; }
 .comment-author-avatar { flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.comment-points { position: absolute; top: calc(100% + 2px); left: 0; z-index: 6; display: none; width: max-content; max-width: min(180px, 55vw); padding: 4px 7px; border-radius: 4px; background: #292129; color: #fff; font-size: 11px; font-weight: normal; line-height: 1.2; overflow-wrap: anywhere; }
+.comment:hover .comment-points, .comment:focus-within .comment-points { display: block; }
 .comment-date { color: #666; font-size: 12px; }
 .comment-edited { color: #666; font-size: 12px; font-style: italic; }
 .comment-text { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .comment-deleted { min-width: 0; margin: 0; color: #666; font-style: italic; overflow-wrap: anywhere; }
-.comment-controls { position: relative; z-index: 2; display: flex; width: auto; height: auto; flex: 0 0 auto; justify-content: flex-end; margin-left: auto; }
+.comment-controls { position: relative; z-index: 2; display: flex; width: 44px; height: 32px; flex: 0 0 44px; justify-content: flex-end; margin: 4px -6px 0 auto; }
 .comment-replies { position: absolute; z-index: 3; top: -5px; right: 8px; display: flex; flex-direction: row-reverse; align-items: flex-start; gap: 3px; max-width: calc(100% - 16px); }
 .comment-reply-pin { position: relative; display: grid; width: 44px; min-width: 44px; height: 44px; min-height: 44px; flex: 0 0 44px; place-items: center; padding: 0; border: 0; background: transparent; cursor: pointer; transform: rotate(var(--reply-angle, 0deg)); transform-origin: center; }
 .comment-reply-pin > img { display: block; width: 42px; height: 42px; object-fit: contain; }

@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import threading
 import tempfile
@@ -19,6 +20,7 @@ MAX_REQUEST_BYTES = 4096
 MAX_CREDENTIALS_LENGTH = 160
 MAX_USERNAME_LENGTH = 60
 MAX_COMMENT_LENGTH = 280
+MAX_COMMENT_LINE_BREAKS = 3
 PASSWORD_HASH_ITERATIONS = 600_000
 comments_lock = threading.Lock()
 users_lock = threading.Lock()
@@ -52,6 +54,10 @@ def validate_comment_replies(replies):
     ):
         raise ValueError("Invalid saved replies data")
     return replies
+
+
+def count_line_breaks(text):
+    return len(re.findall(r"\r\n|\r|\n", text))
 
 
 class SiteHandler(SimpleHTTPRequestHandler):
@@ -94,49 +100,70 @@ class SiteHandler(SimpleHTTPRequestHandler):
             if not COMMENTS_FILE.exists():
                 return comments
             with COMMENTS_FILE.open("r", encoding="utf-8") as file:
+                records = []
                 for line_number, line in enumerate(file, start=1):
                     if not line.strip() or line.lstrip().startswith("#"):
                         continue
                     try:
-                        saved_comment = json.loads(line)
+                        records.append(json.loads(line))
                     except json.JSONDecodeError as error:
                         raise ValueError(
                             f"Invalid comment data on line {line_number}"
                         ) from error
 
-                    is_private = bool(saved_comment.get("private"))
-                    if is_private and (
-                        not viewer_username or
-                        viewer_username not in {
-                            saved_comment.get("name"),
-                            saved_comment.get("recipient"),
-                        }
-                    ):
-                        continue
+            points = {}
+            for record in records:
+                username = record.get("name", "")
+                if not username or record.get("private") or record.get("deleted"):
+                    continue
+                total = points.setdefault(username, {"replies": 0, "comments": 0})
+                edited_at = record.get("editedAt") or record.get("edited")
+                total["comments"] += 0.5 if edited_at else 1
+                total["replies"] += sum(
+                    reply["username"] != username
+                    for reply in validate_comment_replies(record.get("replies", []))
+                )
+            author_points = {
+                username: round(100 + total["replies"] / total["comments"], 2)
+                for username, total in points.items()
+                if total["comments"]
+            }
 
-                    edited_at = saved_comment.get("editedAt") or (
-                        saved_comment.get("edited")
-                        if isinstance(saved_comment.get("edited"), str)
-                        else ""
-                    )
-                    comment = {
-                        "date": saved_comment["date"],
-                        "requestId": saved_comment["requestId"],
-                        "deleted": bool(saved_comment.get("deleted")),
-                        "private": is_private,
+            for saved_comment in records:
+                is_private = bool(saved_comment.get("private"))
+                if is_private and (
+                    not viewer_username or
+                    viewer_username not in {
+                        saved_comment.get("name"),
+                        saved_comment.get("recipient"),
                     }
-                    if is_private or not saved_comment.get("deleted"):
-                        comment["name"] = saved_comment["name"]
-                        comment["edited"] = bool(edited_at)
-                        comment["editedAt"] = edited_at
-                        if is_private:
-                            comment["recipient"] = saved_comment.get("recipient", "")
-                    if not saved_comment.get("deleted"):
-                        comment["comment"] = saved_comment["comment"]
-                        comment["replies"] = validate_comment_replies(
-                            saved_comment.get("replies", [])
-                        )
-                    comments.append(comment)
+                ):
+                    continue
+
+                edited_at = saved_comment.get("editedAt") or (
+                    saved_comment.get("edited")
+                    if isinstance(saved_comment.get("edited"), str)
+                    else ""
+                )
+                comment = {
+                    "date": saved_comment["date"],
+                    "requestId": saved_comment["requestId"],
+                    "deleted": bool(saved_comment.get("deleted")),
+                    "private": is_private,
+                    "authorPoints": author_points.get(saved_comment.get("name"), 100),
+                }
+                if is_private or not saved_comment.get("deleted"):
+                    comment["name"] = saved_comment["name"]
+                    comment["edited"] = bool(edited_at)
+                    comment["editedAt"] = edited_at
+                    if is_private:
+                        comment["recipient"] = saved_comment.get("recipient", "")
+                if not saved_comment.get("deleted"):
+                    comment["comment"] = saved_comment["comment"]
+                    comment["replies"] = validate_comment_replies(
+                        saved_comment.get("replies", [])
+                    )
+                comments.append(comment)
         return list(reversed(comments))
 
     def load_users(self):
@@ -328,6 +355,12 @@ class SiteHandler(SimpleHTTPRequestHandler):
             self.send_json(
                 HTTPStatus.BAD_REQUEST,
                 {"error": "El comentario admite hasta 280 caracteres."},
+            )
+            return
+        if count_line_breaks(comment_text) > MAX_COMMENT_LINE_BREAKS:
+            self.send_json(
+                HTTPStatus.BAD_REQUEST,
+                {"error": "El comentario admite como máximo 3 saltos de línea."},
             )
             return
 
@@ -664,6 +697,12 @@ class SiteHandler(SimpleHTTPRequestHandler):
                         self.send_json(
                             HTTPStatus.BAD_REQUEST,
                             {"error": "El comentario admite hasta 280 caracteres."},
+                        )
+                        return
+                    if count_line_breaks(text) > MAX_COMMENT_LINE_BREAKS:
+                        self.send_json(
+                            HTTPStatus.BAD_REQUEST,
+                            {"error": "El comentario admite como máximo 3 saltos de línea."},
                         )
                         return
                     record["comment"] = text

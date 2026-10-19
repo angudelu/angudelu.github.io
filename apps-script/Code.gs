@@ -5,6 +5,7 @@ const COMMENTS_PEPPER_PROPERTY = "COMMENTS_PEPPER";
 const INITIAL_USERS_PROPERTY = "INITIAL_USERS_JSON";
 const NEW_USERS_PROPERTY = "NEW_USERS_JSON";
 const MAX_COMMENT_LENGTH = 280;
+const MAX_COMMENT_LINE_BREAKS = 3;
 const MAX_USERNAME_LENGTH = 60;
 const MAX_CREDENTIALS_LENGTH = 160;
 const MAX_COMMENTS_PER_DAY = 10;
@@ -68,7 +69,8 @@ function setup() {
       const salt = Utilities.getUuid();
       users[username] = {
         salt: salt,
-        hash: hashPassword_(username, password, salt, pepper)
+        hash: hashPassword_(username, password, salt, pepper),
+        points: 100
       };
     });
 
@@ -127,7 +129,8 @@ function addUsers() {
     const salt = Utilities.getUuid();
     users[username] = {
       salt: salt,
-      hash: hashPassword_(username, usersToAdd[username], salt, pepper)
+      hash: hashPassword_(username, usersToAdd[username], salt, pepper),
+      points: 100
     };
   });
 
@@ -147,7 +150,7 @@ function doGet(event) {
   try {
     const comments = readComments_();
     const body = callback + "(" + JSON.stringify({
-      apiVersion: 5,
+      apiVersion: 6,
       comments: comments
     }) + ");";
     return ContentService.createTextOutput(body)
@@ -238,6 +241,14 @@ function doPost(event) {
       ok: false,
       status: 400,
       error: "El comentario admite hasta 280 caracteres."
+    });
+  }
+  if (countLineBreaks_(comment) > MAX_COMMENT_LINE_BREAKS) {
+    return postMessageResponse_({
+      requestId: requestId,
+      ok: false,
+      status: 400,
+      error: "El comentario admite como máximo 3 saltos de línea."
     });
   }
 
@@ -406,10 +417,13 @@ function readComments_(viewerUsername) {
   }
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) {
+    updateAccountPoints_([]);
     return [];
   }
 
-  return sheet.getRange(2, 1, lastRow - 1, 9).getValues()
+  const rows = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+  const pointsByUsername = updateAccountPoints_(rows);
+  return rows
     .filter((row) =>
       row[0] &&
       row[1] &&
@@ -428,7 +442,8 @@ function readComments_(viewerUsername) {
         recipient: row[5] === true ? String(row[4] || "") : "",
         edited: Boolean(row[6]),
         editedAt: row[6] instanceof Date ? row[6].toISOString() : String(row[6] || ""),
-        deleted: row[7] === true
+        deleted: row[7] === true,
+        authorPoints: pointsByUsername[String(row[1])] || 100
       };
       if (!comment.deleted) {
         comment.comment = String(row[2]);
@@ -436,6 +451,59 @@ function readComments_(viewerUsername) {
       }
       return comment;
     });
+}
+
+function updateAccountPoints_(rows) {
+  const properties = PropertiesService.getScriptProperties();
+  const usersJson = properties.getProperty(COMMENTS_USERS_PROPERTY);
+  if (!usersJson) {
+    throw new Error("No hay usuarios configurados. Ejecuta setup().");
+  }
+
+  const users = JSON.parse(usersJson);
+  const totals = {};
+  let changed = false;
+  Object.keys(users).forEach((username) => {
+    totals[username] = { replies: 0, comments: 0 };
+    if (!Number.isFinite(users[username].points)) {
+      users[username].points = 100;
+      changed = true;
+    }
+  });
+
+  rows.forEach((row) => {
+    const author = String(row[1] || "");
+    if (!author || row[5] === true || row[7] === true || !totals[author]) {
+      return;
+    }
+    totals[author].comments += row[6] ? 0.5 : 1;
+    parseCommentReplies_(row[8]).forEach((reply) => {
+      if (reply.username !== author) {
+        totals[author].replies += 1;
+      }
+    });
+  });
+
+  Object.keys(users).forEach((username) => {
+    const total = totals[username];
+    const points = Math.round(
+      (100 + (total.comments ? total.replies / total.comments : 0)) * 100
+    ) / 100;
+    if (users[username].points !== points) {
+      users[username].points = points;
+      changed = true;
+    }
+  });
+  if (changed) {
+    properties.setProperty(COMMENTS_USERS_PROPERTY, JSON.stringify(users));
+  }
+  return Object.fromEntries(
+    Object.keys(users).map((username) => [username, users[username].points])
+  );
+}
+
+function countLineBreaks_(text) {
+  return (String(text).match(/\r\n|\r|\n/g) || []).length;
 }
 
 function verifyUser_(username, password) {
@@ -556,6 +624,11 @@ function manageComment_(parameters, requestId) {
             failure = { status: 400, error: "Escribe un comentario antes de guardar los cambios." };
           } else if (text.length > MAX_COMMENT_LENGTH) {
             failure = { status: 400, error: "El comentario admite hasta 280 caracteres." };
+          } else if (countLineBreaks_(text) > MAX_COMMENT_LINE_BREAKS) {
+            failure = {
+              status: 400,
+              error: "El comentario admite como máximo 3 saltos de línea."
+            };
           } else {
             sheet.getRange(rowIndex + 2, 3).setValue(text);
             sheet.getRange(rowIndex + 2, 7).setValue(new Date());
